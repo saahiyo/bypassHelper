@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "bypassHelper",
+  "version": "1.0",
+  "description": "Auto-clicks link shortener buttons, removes popups, blocks ad networks. Skips arolinks.com completely.",
+  "icons": {
+    "16": "icon48.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "https://arolinks.com/*",
+        "https://*.arolinks.com/*",
+        "https://web.urllinkshort.in/*",
+        "https://shortxlinks.com/*",
+        "https://open.nowshort.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "host_permissions": ["<all_urls>"],
+  "web_accessible_resources": [
+    {
+      "resources": ["icon*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
