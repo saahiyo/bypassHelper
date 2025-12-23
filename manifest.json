@@ -1,32 +1,43 @@
 {
   "manifest_version": 3,
   "name": "bypassHelper",
-  "version": "1.0",
-  "description": "Auto-clicks link shortener buttons, removes popups, blocks ad networks. Skips arolinks.com completely.",
+  "version": "1.1.0",
+  "description": "Automatically detects link shorteners, skips intermediate pages, removes overlays, and blocks known ad networks.",
+
   "icons": {
-    "16": "icon48.png"
+    "16": "icon16.png"
   },
 
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "exclude_matches": [
-        "https://arolinks.com/*",
-        "https://*.arolinks.com/*",
-        "https://web.urllinkshort.in/*",
-        "https://shortxlinks.com/*",
-        "https://open.nowshort.com/*"
+        "*://arolinks.com/*",
+        "*://*.arolinks.com/*",
+        "*://web.urllinkshort.in/*",
+        "*://shortxlinks.com/*",
+        "*://open.nowshort.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_start",
       "all_frames": true
     }
   ],
+
   "host_permissions": ["<all_urls>"],
-  "web_accessible_resources": [
-    {
-      "resources": ["icon*.png"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+
+  "permissions": [
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
+  ],
+
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "adblock_rules",
+        "enabled": true,
+        "path": "rules/adblock.json"
+      }
+    ]
+  }
 }
