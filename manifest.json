@@ -16,7 +16,9 @@
         "*://*.arolinks.com/*",
         "*://web.urllinkshort.in/*",
         "*://shortxlinks.com/*",
-        "*://open.nowshort.com/*"
+        "*://open.nowshort.com/*",
+        "*://makelinks.in/*",
+        "*://inshorturl.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_start",
