@@ -107,7 +107,7 @@
 
   // 2) MID STATE: click helper/state-advance button ONCE (must be visible)
   function clickGateHelperOnce() {
-    const keywords = /(verify|human|start|next|continue)/i;
+    const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down)/i;
 
     const helper = [...document.querySelectorAll('a,button,div')]
       .find(el => {
@@ -121,7 +121,7 @@
         if ((el.textContent || '').length > 60) return false;
 
         // often tied to forms/lockers
-        return el.closest('form, .gate, .locker, #rtg, #wpsafelink') || true;
+        return !!el.closest('form, .gate, .locker, #rtg, #wpsafelink');
       });
 
     if (!helper) return false;
@@ -202,5 +202,32 @@
     if (!stopped) execute();
     else clearInterval(timer);
   }, CONFIG.ACTION_INTERVAL);
+
+  /*****************************************************************
+   * KEYBOARD SHORTCUT HANDLER
+   *****************************************************************/
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'goToBottom') {
+      log('Keyboard shortcut triggered - forcing bypass execution');
+      // Reset stopped state to allow bypass to run
+      stopped = false;
+      // Force execute bypass actions
+      execute();
+      // Scroll to bottom of page
+      window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: 'smooth'
+      });
+      sendResponse({ success: true });
+    } else if (request.action === 'goToTop') {
+      log('Keyboard shortcut triggered - scrolling to top');
+      // Scroll to top of page
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      sendResponse({ success: true });
+    }
+  });
 
 })();

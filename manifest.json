@@ -18,7 +18,8 @@
         "*://shortxlinks.com/*",
         "*://open.nowshort.com/*",
         "*://makelinks.in/*",
-        "*://inshorturl.com/*"
+        "*://inshorturl.com/*",
+        "*://vplink.in/*"
       ],
       "js": ["content.js"],
       "run_at": "document_start",
@@ -41,5 +42,26 @@
         "path": "rules/adblock.json"
       }
     ]
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "commands": {
+    "go-to-bottom": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+B",
+        "mac": "Command+Shift+B"
+      },
+      "description": "Scroll to bottom of page"
+    },
+    "go-to-top": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+T",
+        "mac": "Command+Shift+T"
+      },
+      "description": "Scroll to top of page"
+    }
   }
 }
