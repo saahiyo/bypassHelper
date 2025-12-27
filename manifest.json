@@ -3,37 +3,30 @@
   "name": "bypassHelper",
   "version": "1.1.0",
   "description": "Automatically detects link shorteners, skips intermediate pages, removes overlays, and blocks known ad networks.",
-
   "icons": {
-    "16": "icon16.png"
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
   },
-
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "exclude_matches": [
-        "*://arolinks.com/*",
-        "*://*.arolinks.com/*",
-        "*://web.urllinkshort.in/*",
-        "*://shortxlinks.com/*",
-        "*://open.nowshort.com/*",
-        "*://makelinks.in/*",
-        "*://inshorturl.com/*",
-        "*://vplink.in/*"
+      "matches": [
+        "<all_urls>"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true
     }
   ],
-
-  "host_permissions": ["<all_urls>"],
-
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess"
   ],
-
   "declarative_net_request": {
     "rule_resources": [
       {
@@ -43,11 +36,9 @@
       }
     ]
   },
-
   "background": {
     "service_worker": "background.js"
   },
-
   "commands": {
     "go-to-bottom": {
       "suggested_key": {

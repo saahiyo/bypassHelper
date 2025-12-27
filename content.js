@@ -5,7 +5,7 @@
    * CONFIG
    *****************************************************************/
   const CONFIG = {
-    DEBUG: true,
+    DEBUG: false,
     MAX_ACTIONS: 5,
     DETECTION_THRESHOLD: 6,
     ACTION_INTERVAL: 900,
@@ -14,24 +14,19 @@
       'urllinkshort.in',
       'shortxlinks.com',
       'nowshort.com',
-      'inshorturl.com'
+      'inshorturl.com',
+      'google.com',
+      'bing.com',
+      'duckduckgo.com',
+      'yahoo.com',
+      'facebook.com',
+      'twitter.com',
+      'x.com',
+      'instagram.com',
+      'youtube.com',
+      'reddit.com'
     ]
   };
-
-  const NEVER_TOUCH_HOSTS = [
-    'google.com',
-    'bing.com',
-    'duckduckgo.com',
-    'yahoo.com',
-    'facebook.com',
-    'twitter.com',
-    'x.com',
-    'instagram.com',
-    'youtube.com',
-    'reddit.com'
-  ];
-
-  if (NEVER_TOUCH_HOSTS.some(h => location.hostname.includes(h))) return;
 
   const log = (...a) => CONFIG.DEBUG && console.log('[bypassHelper]', ...a);
 
