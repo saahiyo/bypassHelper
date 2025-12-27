@@ -15,6 +15,7 @@
       'shortxlinks.com',
       'nowshort.com',
       'inshorturl.com',
+      'link.get2short.com',
       'google.com',
       'bing.com',
       'duckduckgo.com',
@@ -37,6 +38,35 @@
 
   let actionCount = 0;
   let stopped = false;
+  let isEnabled = true;
+
+  // Initialize state from storage
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.local.get({ enabled: true }, (data) => {
+      isEnabled = data.enabled;
+      log('Initial state:', isEnabled ? 'Enabled' : 'Disabled');
+    });
+
+    // Listen for storage changes (toggle from popup)
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.enabled) {
+        isEnabled = changes.enabled.newValue;
+        log('State changed to:', isEnabled ? 'Enabled' : 'Disabled');
+        if (isEnabled) {
+          execute(); // Resume if enabled
+        }
+      }
+    });
+
+    // Listen for messages from popup
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'forceBypass') {
+        log('Force bypass requested via popup');
+        stopped = false;
+        execute();
+      }
+    });
+  }
 
   /*****************************************************************
    * DETECTORS (gate presence)
@@ -59,6 +89,16 @@
           const z = parseInt(getComputedStyle(d).zIndex, 10);
           return !isNaN(z) && z > 999;
         });
+    },
+    knownGates() {
+      const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
+      return [...document.querySelectorAll('div, section, aside')]
+        .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
+    },
+    antiAdblock() {
+      const antiAdblockKeywords = /ads?\s*blocker\s*detected|disable\s*your\s*ad\s*blocker|please\s*support\s*us/i;
+      return [...document.querySelectorAll('div, section, h2, h3, p')]
+        .some(el => antiAdblockKeywords.test(el.textContent || ''));
     }
   };
 
@@ -66,13 +106,19 @@
     let score = 0;
     let gated = false;
 
+    if (detectors.antiAdblock()) { score += 10; gated = true; }
     if (detectors.countdown()) { score += 3; gated = true; }
     if (detectors.disabledButtons()) { score += 3; gated = true; }
+
+    if (!gated) {
+      if (detectors.knownGates()) { score += 5; gated = true; }
+    }
 
     if (!gated) return false;
 
     if (detectors.jsRedirectHints()) score += 4;
     if (detectors.overlays()) score += 2;
+    if (detectors.knownGates() && gated) score += 2; // Extra score if already gated
 
     log('Detection score:', score);
     return score >= CONFIG.DETECTION_THRESHOLD;
@@ -137,11 +183,35 @@
   }
 
   function removeOverlays() {
-    document.querySelectorAll('div').forEach(d => {
+    const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
+    const antiAdblockKeywords = /ads?\s*blocker\s*detected|disable\s*your\s*ad\s*blocker/i;
+
+    document.querySelectorAll('div, section, aside').forEach(d => {
       const z = parseInt(getComputedStyle(d).zIndex, 10);
-      if (!isNaN(z) && z > 999) d.remove();
+      const isKnownGate = gatePatterns.test(d.className) || gatePatterns.test(d.id);
+      const isAntiAdblockModal = antiAdblockKeywords.test(d.textContent || '') && (!isNaN(z) && z > 100);
+      
+      if (isKnownGate || isAntiAdblockModal || (!isNaN(z) && z > 999)) {
+        log('Removing overlay/anti-adblock element:', d.className, d.id);
+        d.remove();
+      }
     });
-    if (document.body) document.body.style.overflow = 'auto';
+
+    // Remove fixed position overlays that might be blocking interaction
+    document.querySelectorAll('*').forEach(el => {
+      if (antiAdblockKeywords.test(el.textContent || '')) {
+        const style = getComputedStyle(el);
+        if (style.position === 'fixed' || style.position === 'absolute') {
+          log('Removing fixed anti-adblock element');
+          el.remove();
+        }
+      }
+    });
+
+    if (document.body) {
+      document.body.style.overflow = 'auto';
+      document.body.style.setProperty('overflow', 'auto', 'important');
+    }
   }
 
   /*****************************************************************
@@ -155,7 +225,7 @@
   }
 
   function execute() {
-    if (stopped) return;
+    if (stopped || !isEnabled) return;
     if (!detectGate()) return;
 
     // Final state first (works even if button is hidden)
@@ -199,30 +269,12 @@
   }, CONFIG.ACTION_INTERVAL);
 
   /*****************************************************************
-   * KEYBOARD SHORTCUT HANDLER
+   * EVENT LISTENERS (Communication with shortcuts.js)
    *****************************************************************/
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'goToBottom') {
-      log('Keyboard shortcut triggered - forcing bypass execution');
-      // Reset stopped state to allow bypass to run
-      stopped = false;
-      // Force execute bypass actions
-      execute();
-      // Scroll to bottom of page
-      window.scrollTo({
-        top: document.body.scrollHeight,
-        behavior: 'smooth'
-      });
-      sendResponse({ success: true });
-    } else if (request.action === 'goToTop') {
-      log('Keyboard shortcut triggered - scrolling to top');
-      // Scroll to top of page
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-      sendResponse({ success: true });
-    }
+  window.addEventListener('bypassHelper:forceExecute', () => {
+    log('Force bypass execution triggered via event');
+    stopped = false;
+    execute();
   });
 
 })();
