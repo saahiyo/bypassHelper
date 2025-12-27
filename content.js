@@ -69,66 +69,9 @@
   }
 
   /*****************************************************************
-   * DETECTORS (gate presence)
-   *****************************************************************/
-  const detectors = {
-    countdown() {
-      return [...document.querySelectorAll('*')]
-        .some(e => /\b\d+\s*(sec|seconds|wait)\b/i.test(e.textContent));
-    },
-    disabledButtons() {
-      return document.querySelectorAll('button:disabled').length > 0;
-    },
-    jsRedirectHints() {
-      return [...document.scripts]
-        .some(s => /location\.href|window\.open|setTimeout\s*\(/i.test(s.textContent));
-    },
-    overlays() {
-      return [...document.querySelectorAll('div')]
-        .some(d => {
-          const z = parseInt(getComputedStyle(d).zIndex, 10);
-          return !isNaN(z) && z > 999;
-        });
-    },
-    knownGates() {
-      const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
-      return [...document.querySelectorAll('div, section, aside')]
-        .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
-    },
-    antiAdblock() {
-      const antiAdblockKeywords = /ads?\s*blocker\s*detected|disable\s*your\s*ad\s*blocker|please\s*support\s*us/i;
-      return [...document.querySelectorAll('div, section, h2, h3, p')]
-        .some(el => antiAdblockKeywords.test(el.textContent || ''));
-    }
-  };
-
-  function detectGate() {
-    let score = 0;
-    let gated = false;
-
-    if (detectors.antiAdblock()) { score += 10; gated = true; }
-    if (detectors.countdown()) { score += 3; gated = true; }
-    if (detectors.disabledButtons()) { score += 3; gated = true; }
-
-    if (!gated) {
-      if (detectors.knownGates()) { score += 5; gated = true; }
-    }
-
-    if (!gated) return false;
-
-    if (detectors.jsRedirectHints()) score += 4;
-    if (detectors.overlays()) score += 2;
-    if (detectors.knownGates() && gated) score += 2; // Extra score if already gated
-
-    log('Detection score:', score);
-    return score >= CONFIG.DETECTION_THRESHOLD;
-  }
-
-  /*****************************************************************
-   * STATE-AWARE ACTIONS
+   * ACTIONS
    *****************************************************************/
 
-  // 1) FINAL STATE: submit RTG/SafeLink form directly (button may be hidden)
   function submitSafeLinkFormOnce() {
     const form = document.querySelector(
       "form#rtgForm, form[name='rtg'], form[action][method='post']"
@@ -226,7 +169,10 @@
 
   function execute() {
     if (stopped || !isEnabled) return;
-    if (!detectGate()) return;
+
+    // Cleanup and Anti-Adblock
+    unlockButtons();
+    removeOverlays();
 
     // Final state first (works even if button is hidden)
     if (submitSafeLinkFormOnce()) {
@@ -238,10 +184,6 @@
     if (clickGateHelperOnce()) {
       return; // wait for DOM mutation to unlock next state
     }
-
-    // Cleanup
-    unlockButtons();
-    removeOverlays();
 
     if (actionCount >= CONFIG.MAX_ACTIONS) {
       stopAll('Max actions reached');
