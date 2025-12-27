@@ -7,14 +7,15 @@
   const CONFIG = {
     DEBUG: false,
     MAX_ACTIONS: 5,
-    DETECTION_THRESHOLD: 6,
+    DETECTION_THRESHOLD: 5,
     ACTION_INTERVAL: 900,
     EXCLUDED_HOSTS: [
       'arolinks.com',
       'urllinkshort.in',
       'shortxlinks.com',
       'nowshort.com',
-      'inshorturl.com',
+      'inshorturl.*',
+      'makelinks.in',
       'google.com',
       'bing.com',
       'duckduckgo.com',
@@ -64,6 +65,11 @@
       const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
       return [...document.querySelectorAll('div, section, aside')]
         .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
+    },
+    actionButtons() {
+      const keywords = /(verify|human|start|next|verify|continue|scroll\s*down|tab\s*scroll\s*down)/i;
+      return [...document.querySelectorAll('a,button,div')]
+        .some(el => el.offsetParent && keywords.test(el.textContent));
     }
   };
 
@@ -76,6 +82,18 @@
 
     if (!gated) {
       if (detectors.knownGates()) { score += 5; gated = true; }
+    }
+
+    // Retain engagement if we've already started acting
+    if (actionCount > 0) {
+      score += 3;
+      gated = true;
+    }
+
+    // Check for visible action buttons
+    if (detectors.actionButtons()) {
+      score += 2;
+      gated = true;
     }
 
     if (!gated) return false;
@@ -121,12 +139,12 @@
         if (!keywords.test(el.textContent || '')) return false;
 
         // avoid nav/content
-        if (el.closest('nav,header,footer,article,main')) return false;
+        // avoid nav/footer (allow main/article as content often lives there)
+        if (el.closest('nav,header,footer')) return false;
         if (el.tagName === 'A' && el.getAttribute('href')?.startsWith('#')) return false;
         if ((el.textContent || '').length > 60) return false;
 
-        // often tied to forms/lockers
-        return !!el.closest('form, .gate, .locker, #rtg, #wpsafelink');
+        return true;
       });
 
     if (!helper) return false;
