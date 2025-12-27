@@ -15,7 +15,6 @@
       'shortxlinks.com',
       'nowshort.com',
       'inshorturl.com',
-      'link.get2short.com',
       'google.com',
       'bing.com',
       'duckduckgo.com',
@@ -38,35 +37,6 @@
 
   let actionCount = 0;
   let stopped = false;
-  let isEnabled = true;
-
-  // Initialize state from storage
-  if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.get({ enabled: true }, (data) => {
-      isEnabled = data.enabled;
-      log('Initial state:', isEnabled ? 'Enabled' : 'Disabled');
-    });
-
-    // Listen for storage changes (toggle from popup)
-    chrome.storage.onChanged.addListener((changes) => {
-      if (changes.enabled) {
-        isEnabled = changes.enabled.newValue;
-        log('State changed to:', isEnabled ? 'Enabled' : 'Disabled');
-        if (isEnabled) {
-          execute(); // Resume if enabled
-        }
-      }
-    });
-
-    // Listen for messages from popup
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      if (request.action === 'forceBypass') {
-        log('Force bypass requested via popup');
-        stopped = false;
-        execute();
-      }
-    });
-  }
 
   /*****************************************************************
    * DETECTORS (gate presence)
@@ -94,11 +64,6 @@
       const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
       return [...document.querySelectorAll('div, section, aside')]
         .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
-    },
-    antiAdblock() {
-      const antiAdblockKeywords = /ads?\s*blocker\s*detected|disable\s*your\s*ad\s*blocker|please\s*support\s*us/i;
-      return [...document.querySelectorAll('div, section, h2, h3, p')]
-        .some(el => antiAdblockKeywords.test(el.textContent || ''));
     }
   };
 
@@ -106,7 +71,6 @@
     let score = 0;
     let gated = false;
 
-    if (detectors.antiAdblock()) { score += 10; gated = true; }
     if (detectors.countdown()) { score += 3; gated = true; }
     if (detectors.disabledButtons()) { score += 3; gated = true; }
 
@@ -184,34 +148,16 @@
 
   function removeOverlays() {
     const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
-    const antiAdblockKeywords = /ads?\s*blocker\s*detected|disable\s*your\s*ad\s*blocker/i;
-
     document.querySelectorAll('div, section, aside').forEach(d => {
       const z = parseInt(getComputedStyle(d).zIndex, 10);
       const isKnownGate = gatePatterns.test(d.className) || gatePatterns.test(d.id);
-      const isAntiAdblockModal = antiAdblockKeywords.test(d.textContent || '') && (!isNaN(z) && z > 100);
       
-      if (isKnownGate || isAntiAdblockModal || (!isNaN(z) && z > 999)) {
-        log('Removing overlay/anti-adblock element:', d.className, d.id);
+      if (isKnownGate || (!isNaN(z) && z > 999)) {
+        log('Removing overlay element:', d.className, d.id);
         d.remove();
       }
     });
-
-    // Remove fixed position overlays that might be blocking interaction
-    document.querySelectorAll('*').forEach(el => {
-      if (antiAdblockKeywords.test(el.textContent || '')) {
-        const style = getComputedStyle(el);
-        if (style.position === 'fixed' || style.position === 'absolute') {
-          log('Removing fixed anti-adblock element');
-          el.remove();
-        }
-      }
-    });
-
-    if (document.body) {
-      document.body.style.overflow = 'auto';
-      document.body.style.setProperty('overflow', 'auto', 'important');
-    }
+    if (document.body) document.body.style.overflow = 'auto';
   }
 
   /*****************************************************************
@@ -225,7 +171,7 @@
   }
 
   function execute() {
-    if (stopped || !isEnabled) return;
+    if (stopped) return;
     if (!detectGate()) return;
 
     // Final state first (works even if button is hidden)
