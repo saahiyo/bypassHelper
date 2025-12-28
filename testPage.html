@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BypassHelper Test Suite</title>
+    <style>
+        :root {
+            --bg-color: #020617; /* slate-950 */
+            --card-bg: #0f172a; /* slate-900 */
+            --text-color: #f8fafc; /* slate-50 */
+            --text-muted: #94a3b8; /* slate-400 */
+            --primary: #3b82f6; /* blue-500 */
+            --primary-hover: #2563eb; /* blue-600 */
+            --danger: #ef4444; /* red-500 */
+            --success: #22c55e; /* green-500 */
+            --border: #1e293b; /* slate-800 */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        .status {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            background-color: rgba(148, 163, 184, 0.1);
+            color: var(--text-muted);
+        }
+
+        .status.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+        }
+
+        .status.success {
+            background-color: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: var(--border);
+        }
+
+        /* Test Case Specifics */
+        .overlay-mock {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            padding: 1rem;
+            z-index: 1000; /* Trigger detection */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            border-radius: 0.5rem;
+            display: none;
+        }
+        
+        .overlay-mock.visible {
+            display: block;
+        }
+        
+        .timer-display {
+            font-family: monospace;
+            font-size: 1.5rem;
+            text-align: center;
+            margin: 1rem 0;
+            color: var(--primary);
+        }
+
+        .log-area {
+            margin-top: 3rem;
+            background-color: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Hidden Form styles */
+        #rtgForm {
+            display: none; /* or visible but styled */
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="overlay-mock" id="adOverlay">
+        <h3 style="margin-top:0">Ad Overlay</h3>
+        <p>This mimics a high z-index overlay.</p>
+        <div class="ad-container">
+            <!-- Known class name trigger -->
+            <p style="font-size:0.8rem; color:#666;">(Class: ad-container)</p>
+        </div>
+        <button onclick="this.parentElement.remove()" style="margin-top:10px; background:#333;">Close Manual</button>
+    </div>
+
+    <div class="container">
+        <h1>BypassHelper</h1>
+        <p class="subtitle">Automated Detection & Bypass Test Suite</p>
+
+        <div class="grid">
+            
+            <!-- Case 1: Countdown -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Countdown Gate</h2>
+                    <span class="status" id="timerStatus">Waiting</span>
+                </div>
+                <p>Detects "Wait X seconds" pattern.</p>
+                <div class="timer-display" id="timer">Wait 10 seconds</div>
+                <button id="timerBtn" disabled>Please Wait...</button>
+            </div>
+
+            <!-- Case 2: Disabled Button -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Disabled Button</h2>
+                    <span class="status">Locked</span>
+                </div>
+                <p>Button enables after random delay.</p>
+                <button id="disabledBtn" disabled style="margin-top: 1rem;">
+                    Generating Link...
+                </button>
+            </div>
+
+            <!-- Case 3: Keywords & Action Buttons -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Keywords</h2>
+                    <span class="status">Interactive</span>
+                </div>
+                <p>Tests regex detection for common terms.</p>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
+                    <button onclick="log('Clicked Verify')" class="verify-btn">Verify</button>
+                    <button onclick="log('Clicked Continue')" class="continue-btn">Continue</button>
+                    <button onclick="log('Clicked Get Link')" class="link-btn">Get Link</button>
+                </div>
+            </div>
+
+            <!-- Case 4: Form Submission -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Hidden Form</h2>
+                    <span class="status" id="formStatus">Pending</span>
+                </div>
+                <p>Simulates RTG/SafeLink hidden form.</p>
+                <!-- Target a hidden iframe to prevent page navigation (405 error) -->
+                <iframe name="dummyFrame" style="display:none;"></iframe>
+                <form id="rtgForm" action="#success" method="post" target="dummyFrame" onsubmit="log('Manual submit (onsubmit triggered)');">
+                    <input type="hidden" name="token" value="12345">
+                    <button type="submit">Manual Submit</button>
+                </form>
+                <button onclick="document.getElementById('rtgForm').style.display='block'" style="margin-top:1rem;">Reveal Form</button>
+            </div>
+
+            <!-- Case 5: Overlay Control -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Overlay Test</h2>
+                    <span class="status" id="overlayStatus">Active</span>
+                </div>
+                <p>Triggers a high z-index element.</p>
+                <button onclick="respawnOverlay()">Respawn Overlay</button>
+            </div>
+            
+        </div>
+
+        <div class="log-area" id="consoleLog">
+            <div>> System ready. Waiting for extension actions...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(msg) {
+            const area = document.getElementById('consoleLog');
+            const line = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            line.innerHTML = `<span style="color: #64748b">[${time}]</span> ${msg}`;
+            area.appendChild(line);
+            area.scrollTop = area.scrollHeight;
+            console.log(msg);
+        }
+
+        // 1. Countdown Logic
+        let count = 10;
+        const timerEl = document.getElementById('timer');
+        const timerBtn = document.getElementById('timerBtn');
+        const timerStatus = document.getElementById('timerStatus');
+        
+        const interval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                timerEl.textContent = `Wait ${count} seconds`;
+            } else {
+                clearInterval(interval);
+                timerEl.textContent = "Ready!";
+                timerBtn.disabled = false;
+                timerBtn.textContent = "Proceed";
+                timerStatus.textContent = "Unlocked";
+                timerStatus.classList.add('success');
+            }
+        }, 1000);
+        
+        timerBtn.addEventListener('click', () => {
+            log('Timer button clicked');
+            timerBtn.textContent = "Done";
+        });
+
+        // 2. Disabled Button Logic
+        const disabledBtn = document.getElementById('disabledBtn');
+        setTimeout(() => {
+            disabledBtn.disabled = false;
+            disabledBtn.textContent = "Download Now";
+            log('Disabled button unlocked by page logic');
+        }, 5000); // 5 second delay
+
+        disabledBtn.addEventListener('click', () => {
+            log('Disabled Button clicked');
+        });
+
+        // 4. Form Logic (MutationObserver to detect Extension Action)
+        // Since the extension does form.submit(), we can't intercept it easily with JS on the page.
+        // But the extension sets 'data-submitted="true"' BEFORE submitting.
+        // We watch for that.
+        const rtgForm = document.getElementById('rtgForm');
+        const formObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'data-submitted') {
+                    if (rtgForm.dataset.submitted === 'true') {
+                        log('Extension successfully auto-submitted the form!');
+                        document.getElementById('formStatus').textContent = 'Submitted (Detected)';
+                        document.getElementById('formStatus').classList.add('success');
+                    }
+                }
+            });
+        });
+        
+        formObserver.observe(rtgForm, { attributes: true });
+
+        // 5. Overlay Logic
+        function respawnOverlay() {
+            const ov = document.getElementById('adOverlay');
+            ov.classList.add('visible');
+            document.getElementById('overlayStatus').textContent = "Active";
+            document.getElementById('overlayStatus').classList.remove('success');
+            
+            // Check if removed
+            const check = setInterval(() => {
+                if(!document.contains(ov)) { // Detects removal from DOM
+                   log('Overlay removed from DOM!');
+                   document.getElementById('overlayStatus').textContent = "Removed";
+                   document.getElementById('overlayStatus').classList.add('success');
+                   clearInterval(check);
+                }
+            }, 500);
+        }
+
+        // Init Overlay
+        setTimeout(respawnOverlay, 1000);
+
+    </script>
+</body>
+</html>

@@ -37,6 +37,16 @@
       }
     ]
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "excluded_hosts.txt"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   },

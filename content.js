@@ -1,37 +1,40 @@
-(() => {
+(async () => {
   'use strict';
 
   /*****************************************************************
    * CONFIG
    *****************************************************************/
   const CONFIG = {
-    DEBUG: false,
+    DEBUG: true,
     MAX_ACTIONS: 5,
-    DETECTION_THRESHOLD: 5,
+    DETECTION_THRESHOLD: 2,
     ACTION_INTERVAL: 900,
-    EXCLUDED_HOSTS: [
-      'arolinks.com',
-      'urllinkshort.in',
-      'shortxlinks.com',
-      'nowshort.com',
-      'inshorturl.*',
-      'makelinks.in',
-      'google.com',
-      'bing.com',
-      'duckduckgo.com',
-      'yahoo.com',
-      'facebook.com',
-      'twitter.com',
-      'x.com',
-      'instagram.com',
-      'youtube.com',
-      'reddit.com'
-    ]
+    EXCLUDED_HOSTS: []
   };
 
   const log = (...a) => CONFIG.DEBUG && console.log('[bypassHelper]', ...a);
 
-  if (CONFIG.EXCLUDED_HOSTS.some(h => location.hostname.endsWith(h))) {
+  try {
+    const response = await fetch(chrome.runtime.getURL('excluded_hosts.txt'));
+    const text = await response.text();
+    CONFIG.EXCLUDED_HOSTS = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'));
+  } catch (err) {
+    log('Error loading excluded_hosts.txt:', err);
+  }
+
+  const isExcluded = CONFIG.EXCLUDED_HOSTS.some(pattern => {
+    // Escape dots and replace * with .*
+    const regexSource = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape all regex chars
+      .replace(/\\\*/g, '.*'); // turn escaped \* back to .*
+    const regex = new RegExp(`${regexSource}$`, 'i');
+    return regex.test(location.hostname);
+  });
+
+  if (isExcluded) {
     log('Excluded host, exiting');
     return;
   }
@@ -67,7 +70,7 @@
         .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
     },
     actionButtons() {
-      const keywords = /(verify|human|start|next|verify|continue|scroll\s*down|tab\s*scroll\s*down)/i;
+      const keywords = /(verify|human|start|next|verify|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
       return [...document.querySelectorAll('a,button,div')]
         .some(el => el.offsetParent && keywords.test(el.textContent));
     }
@@ -130,7 +133,7 @@
 
   // 2) MID STATE: click helper/state-advance button ONCE (must be visible)
   function clickGateHelperOnce() {
-    const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down)/i;
+    const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
 
     const helper = [...document.querySelectorAll('a,button,div')]
       .find(el => {
