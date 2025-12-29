@@ -7,6 +7,8 @@ makelinks.in
 link.get2short.com
 go.babylinks.in
 vplink.in
+softurl.in
+inshorturl.in
 google.com
 bing.com
 duckduckgo.com

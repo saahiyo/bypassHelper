@@ -72,7 +72,11 @@
     actionButtons() {
       const keywords = /(verify|human|start|next|verify|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
       return [...document.querySelectorAll('a,button,div')]
-        .some(el => el.offsetParent && keywords.test(el.textContent));
+        .some(el => {
+          // Relaxed visibility check for known IDs or if it's high priority
+          const isKnownId = el.id === 'btn6' || el.id === 'rtg-snp2' || el.id === 'alt';
+          return (el.offsetParent || isKnownId) && keywords.test(el.textContent);
+        });
     }
   };
 
@@ -99,6 +103,12 @@
       gated = true;
     }
 
+    // Force gate if specific IDs exist (even if hidden)
+    if (document.querySelector('#btn6, #rtg-snp2, #alt')) {
+      score += 2;
+      gated = true;
+    }
+
     if (!gated) return false;
 
     if (detectors.jsRedirectHints()) score += 4;
@@ -120,24 +130,97 @@
     );
     if (!form || form.dataset.submitted) return false;
 
+    // Filter out common non-gate forms (like WordPress comments)
+    const action = form.getAttribute('action') || '';
+    if (action.includes('wp-comments-post.php') || action.includes('contact-form')) return false;
+
     const hasHiddenToken = !!form.querySelector("input[type='hidden']");
     if (!hasHiddenToken) return false;
 
     form.dataset.submitted = 'true';
     log('Submitting gate form directly:', form.action);
-    form.submit();
+    
+    // Use prototype to avoid errors where an input is named "submit"
+    try {
+      HTMLFormElement.prototype.submit.call(form);
+    } catch (e) {
+      log('Native submit failed, trying fallback click', e);
+      const sub = form.querySelector('button[type="submit"], input[type="submit"]');
+      if (sub) sub.click(); else form.submit();
+    }
 
     actionCount++;
     return true;
   }
 
-  // 2) MID STATE: click helper/state-advance button ONCE (must be visible)
+  function forceClick(element) {
+    if (!element) return;
+    log('Force clicking:', element.textContent.trim() || element.id || 'unknown');
+
+    // 1. Force visibility and pointer events
+    const originalStyles = {
+      display: element.style.display,
+      visibility: element.style.visibility,
+      opacity: element.style.opacity,
+      pointerEvents: element.style.pointerEvents
+    };
+
+    element.style.setProperty('display', 'block', 'important');
+    element.style.setProperty('visibility', 'visible', 'important');
+    element.style.setProperty('opacity', '1', 'important');
+    element.style.setProperty('pointerEvents', 'auto', 'important');
+    element.disabled = false;
+    element.removeAttribute('disabled');
+    
+    // 2. Dispatch a sequence of events
+    ['mouseover', 'mousedown', 'mouseup', 'click'].forEach(type => {
+      const event = new MouseEvent(type, {
+        view: window,
+        bubbles: true,
+        cancelable: true,
+        buttons: 1
+      });
+      element.dispatchEvent(event);
+    });
+
+    // 3. Native method call
+    if (typeof element.click === 'function') {
+      element.click();
+    }
+
+    // 4. Restoration timer (optional, but keeps UI stable)
+    setTimeout(() => {
+      Object.assign(element.style, originalStyles);
+    }, 100);
+  }
+
+  // 2) MID STATE: click helper/state-advance button ONCE
   function clickGateHelperOnce() {
+    const altBtn = document.querySelector('#alt');
+    
+    if (altBtn && !altBtn.dataset.clicked) {
+      log('Clicking specific gate: #alt');
+      altBtn.dataset.clicked = 'true';
+      forceClick(altBtn);
+      actionCount++;
+      return true;
+    }
+
+    const idBtn = document.querySelector('#btn6, #rtg-snp2');
+    console.log(idBtn, 'idBtn');
+    
+    if (idBtn && !idBtn.dataset.clicked) {
+      log('Clicking specific gate: #btn6 #rtg-snp2');
+      idBtn.dataset.clicked = 'true';
+      forceClick(idBtn);
+      actionCount++;
+      return true;
+    }
+
     const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
 
     const helper = [...document.querySelectorAll('a,button,div')]
       .find(el => {
-        if (!el.offsetParent) return false; // must be visible
         if (el.dataset.clicked) return false;
         if (!keywords.test(el.textContent || '')) return false;
 
@@ -153,8 +236,7 @@
     if (!helper) return false;
 
     helper.dataset.clicked = 'true';
-    log('Clicked gate helper:', helper.textContent.trim());
-    helper.click();
+    forceClick(helper); // Use forceClick instead of helper.click()
     actionCount++;
     return true;
   }
@@ -168,7 +250,7 @@
   }
 
   function removeOverlays() {
-    const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
+    const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text|overlay|gcont/i;
     document.querySelectorAll('div, section, aside').forEach(d => {
       const z = parseInt(getComputedStyle(d).zIndex, 10);
       const isKnownGate = gatePatterns.test(d.className) || gatePatterns.test(d.id);
@@ -186,8 +268,8 @@
    *****************************************************************/
   function stopAll(reason) {
     stopped = true;
-    observer.disconnect();
-    clearInterval(timer);
+    if (typeof observer !== 'undefined') observer.disconnect();
+    if (typeof timer !== 'undefined') clearInterval(timer);
     log('Stopped:', reason);
   }
 
@@ -218,8 +300,6 @@
   /*****************************************************************
    * BOOTSTRAP
    *****************************************************************/
-  execute();
-
   const observer = new MutationObserver(() => {
     if (!stopped) execute();
   });
@@ -234,6 +314,9 @@
     if (!stopped) execute();
     else clearInterval(timer);
   }, CONFIG.ACTION_INTERVAL);
+
+  // Initial execution AFTER setup
+  execute();
 
   /*****************************************************************
    * EVENT LISTENERS (Communication with shortcuts.js)
