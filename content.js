@@ -9,7 +9,9 @@
     MAX_ACTIONS: 5,
     DETECTION_THRESHOLD: 2,
     ACTION_INTERVAL: 900,
-    EXCLUDED_HOSTS: []
+    EXCLUDED_HOSTS: [],
+    LOOP_LIMIT: 4, // max actions
+    LOOP_WINDOW: 15000 // in ms (15 seconds)
   };
 
   const log = (...a) => CONFIG.DEBUG && console.log('[bypassHelper]', ...a);
@@ -149,7 +151,7 @@
       if (sub) sub.click(); else form.submit();
     }
 
-    actionCount++;
+    recordAction();
     return true;
   }
 
@@ -202,7 +204,7 @@
       log('Clicking specific gate: #alt');
       altBtn.dataset.clicked = 'true';
       forceClick(altBtn);
-      actionCount++;
+      recordAction();
       return true;
     }
 
@@ -213,7 +215,7 @@
       log('Clicking specific gate: #btn6 #rtg-snp2');
       idBtn.dataset.clicked = 'true';
       forceClick(idBtn);
-      actionCount++;
+      recordAction();
       return true;
     }
 
@@ -237,7 +239,7 @@
 
     helper.dataset.clicked = 'true';
     forceClick(helper); // Use forceClick instead of helper.click()
-    actionCount++;
+    recordAction();
     return true;
   }
 
@@ -264,6 +266,48 @@
   }
 
   /*****************************************************************
+   * LOOP CONTROL (sessionStorage)
+   *****************************************************************/
+  function checkLoop() {
+    try {
+      const data = JSON.parse(sessionStorage.getItem('bypassHelper_Loop') || '{}');
+      const now = Date.now();
+      const host = location.hostname;
+
+      if (!data[host]) return true;
+
+      const recentActions = data[host].filter(ts => (now - ts) < CONFIG.LOOP_WINDOW);
+      
+      if (recentActions.length >= CONFIG.LOOP_LIMIT) {
+        log('Loop detected! Too many actions on this host recently. Pausing automation.');
+        return false;
+      }
+      return true;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function recordAction() {
+    try {
+      const data = JSON.parse(sessionStorage.getItem('bypassHelper_Loop') || '{}');
+      const now = Date.now();
+      const host = location.hostname;
+
+      if (!data[host]) data[host] = [];
+      data[host].push(now);
+      
+      // Cleanup old entries
+      data[host] = data[host].filter(ts => (now - ts) < (CONFIG.LOOP_WINDOW * 2));
+      
+      sessionStorage.setItem('bypassHelper_Loop', JSON.stringify(data));
+      actionCount++;
+    } catch (e) {
+      actionCount++;
+    }
+  }
+
+  /*****************************************************************
    * EXECUTION LOOP (priority order)
    *****************************************************************/
   function stopAll(reason) {
@@ -275,6 +319,10 @@
 
   function execute() {
     if (stopped) return;
+    if (!checkLoop()) {
+      stopAll('Execution paused to prevent infinite loop');
+      return;
+    }
     if (!detectGate()) return;
 
     // Final state first (works even if button is hidden)
