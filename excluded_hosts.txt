@@ -9,6 +9,7 @@ go.babylinks.in
 vplink.in
 softurl.in
 inshorturl.in
+go.just2earn.com
 google.com
 bing.com
 duckduckgo.com

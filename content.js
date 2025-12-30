@@ -10,8 +10,8 @@
     DETECTION_THRESHOLD: 2,
     ACTION_INTERVAL: 900,
     EXCLUDED_HOSTS: [],
-    LOOP_LIMIT: 4, // max actions
-    LOOP_WINDOW: 15000 // in ms (15 seconds)
+    LOOP_LIMIT: 10, // max actions (relaxed)
+    LOOP_WINDOW: 10000 // in ms (10 seconds)
   };
 
   const log = (...a) => CONFIG.DEBUG && console.log('[bypassHelper]', ...a);
@@ -127,6 +127,12 @@
 
   // 1) FINAL STATE: submit RTG/SafeLink form directly (button may be hidden)
   function submitSafeLinkFormOnce() {
+    // 0. Warmup check: wait 3 seconds for page tokens/scripts to ready
+    if (performance.now() < 3000) {
+      log('Waiting for page warmup...');
+      return false;
+    }
+
     const form = document.querySelector(
       "form#rtgForm, form[name='rtg'], form[action][method='post']"
     );
@@ -135,20 +141,42 @@
     // Filter out common non-gate forms (like WordPress comments)
     const action = form.getAttribute('action') || '';
     if (action.includes('wp-comments-post.php') || action.includes('contact-form')) return false;
+    
+    // User requested exclusion for this specific path
+    if (action.includes('links/go')) return false;
 
     const hasHiddenToken = !!form.querySelector("input[type='hidden']");
     if (!hasHiddenToken) return false;
 
-    form.dataset.submitted = 'true';
-    log('Submitting gate form directly:', form.action);
+    // Try to find the submit button first
+    const sub = form.querySelector('button[type="submit"], input[type="submit"]');
     
-    // Use prototype to avoid errors where an input is named "submit"
+    // If specific "Get Link" style text is found in the button, prioritize it
+    // helpful for forms that have multiple buttons
+    
+    if (sub) {
+      log('Found submit button, clicking it:', form.action);
+      form.dataset.submitted = 'true';
+      forceClick(sub);
+      recordAction();
+      return true;
+    }
+
+    // Fallback: requestSubmit() triggers event listeners (standard behavior)
+    log('No submit button found, using requestSubmit:', form.action);
+    form.dataset.submitted = 'true';
+    
     try {
-      HTMLFormElement.prototype.submit.call(form);
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        // Absolute fallback
+        HTMLFormElement.prototype.submit.call(form);
+      }
     } catch (e) {
-      log('Native submit failed, trying fallback click', e);
-      const sub = form.querySelector('button[type="submit"], input[type="submit"]');
-      if (sub) sub.click(); else form.submit();
+      log('Submission failed:', e);
+      // Last resort
+      HTMLFormElement.prototype.submit.call(form);
     }
 
     recordAction();
@@ -209,7 +237,6 @@
     }
 
     const idBtn = document.querySelector('#btn6, #rtg-snp2');
-    console.log(idBtn, 'idBtn');
     
     if (idBtn && !idBtn.dataset.clicked) {
       log('Clicking specific gate: #btn6 #rtg-snp2');
