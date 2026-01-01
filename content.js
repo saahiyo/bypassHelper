@@ -248,8 +248,8 @@
 
     const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
 
-    const helper = [...document.querySelectorAll('a,button,div')]
-      .find(el => {
+    const candidates = [...document.querySelectorAll('a,button,div')]
+      .filter(el => {
         if (el.dataset.clicked) return false;
         if (!keywords.test(el.textContent || '')) return false;
 
@@ -261,6 +261,17 @@
 
         return true;
       });
+
+    let helper = candidates[0];
+
+    // Priority logic: if 'verify' and 'continue' coexist, click 'continue'
+    const hasVerify = candidates.some(el => /verify/i.test(el.textContent));
+    const hasContinue = candidates.some(el => /continue/i.test(el.textContent));
+
+    if (hasVerify && hasContinue) {
+      log('Both Verify and Continue found, prioritizing Continue');
+      helper = candidates.find(el => /continue/i.test(el.textContent));
+    }
 
     if (!helper) return false;
 
