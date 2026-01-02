@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bypass Helper</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bypass Helper</h1>
+            <p class="version">v1.1.0</p>
+        </header>
+        
+        <main>
+            <div class="control-group">
+                <div class="label-group">
+                    <span class="control-label">Enable Extension</span>
+                    <span class="control-desc">Turn bypass functionality on or off</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="enabled-toggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div class="control-group">
+                <div class="label-group">
+                    <span class="control-label">Loop Prevention</span>
+                    <span class="control-desc">Pause if too many actions</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="loop-toggle">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            
+            <div class="status-message" id="status-msg">
+                Extension is active
+            </div>
+        </main>
+        
+        <footer>
+            <a href="#" id="open-settings">Settings</a>
+            <span class="separator">•</span>
+            <a href="https://github.com/saahiyo/bypassHelper" target="_blank">Support</a>
+        </footer>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>

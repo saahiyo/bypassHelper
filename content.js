@@ -4,6 +4,16 @@
   /*****************************************************************
    * CONFIG
    *****************************************************************/
+  
+  // Check if extension is enabled
+  const { extensionEnabled, loopPreventionEnabled } = await chrome.storage.local.get(['extensionEnabled', 'loopPreventionEnabled']);
+  if (extensionEnabled === false) {
+    // We can't easily use log() here because CONFIG isn't fully defined yet, 
+    // but the console will show it if we just use console.log
+    if (true) console.log('[bypassHelper] Extension disabled via popup'); 
+    return;
+  }
+
   const CONFIG = {
     DEBUG: true,
     MAX_ACTIONS: 5,
@@ -11,7 +21,8 @@
     ACTION_INTERVAL: 900,
     EXCLUDED_HOSTS: [],
     LOOP_LIMIT: 10, // max actions (relaxed)
-    LOOP_WINDOW: 10000 // in ms (10 seconds)
+    LOOP_WINDOW: 10000, // in ms (10 seconds)
+    LOOP_PREVENTION_ENABLED: loopPreventionEnabled !== undefined ? loopPreventionEnabled : true
   };
 
   const log = (...a) => CONFIG.DEBUG && console.log('[bypassHelper]', ...a);
@@ -307,6 +318,8 @@
    * LOOP CONTROL (sessionStorage)
    *****************************************************************/
   function checkLoop() {
+    if (!CONFIG.LOOP_PREVENTION_ENABLED) return true;
+
     try {
       const data = JSON.parse(sessionStorage.getItem('bypassHelper_Loop') || '{}');
       const now = Date.now();

@@ -2,7 +2,7 @@ arolinks.com
 urllinkshort.in
 shortxlinks.com
 nowshort.com
-inshorturl.*
+inshorturl.in
 makelinks.in
 link.get2short.com
 go.babylinks.in
