@@ -83,7 +83,7 @@
         .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
     },
     actionButtons() {
-      const keywords = /(verify|human|start|next|verify|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
+      const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|go\s*to\s*link|dual\s*tap)/i;
       return [...document.querySelectorAll('a,button,div')]
         .some(el => {
           // Relaxed visibility check for known IDs or if it's high priority
@@ -237,6 +237,19 @@
 
   // 2) MID STATE: click helper/state-advance button ONCE
   function clickGateHelperOnce() {
+    const CLICK_DELAY = 2000; // 2 seconds delay
+    
+    // Helper for delayed clicks
+    const scheduleClick = (el, desc) => {
+      log(`Scheduling click for ${desc} in ${CLICK_DELAY}ms`);
+      el.dataset.clicked = 'true';
+      setTimeout(() => {
+        if (stopped) return;
+        forceClick(el);
+        recordAction();
+      }, CLICK_DELAY);
+    };
+
     const altBtn = document.querySelector('#alt');
     
     if (altBtn && !altBtn.dataset.clicked) {
@@ -247,17 +260,17 @@
       return true;
     }
 
-    const idBtn = document.querySelector('#btn6, #rtg-snp2');
+    const idBtn = document.querySelector('#btn6, #rtg-snp2, #bt-success, #getlink1, #ga, #gi, #notarobot');
     
     if (idBtn && !idBtn.dataset.clicked) {
-      log('Clicking specific gate: #btn6 #rtg-snp2');
+      log('Clicking specific gate:', '#' + idBtn.id);
       idBtn.dataset.clicked = 'true';
       forceClick(idBtn);
       recordAction();
       return true;
     }
 
-    const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|get\s*started)/i;
+    const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|go\s*to\s*link|dual\s*tap)/i;
 
     const candidates = [...document.querySelectorAll('a,button,div')]
       .filter(el => {
@@ -266,9 +279,9 @@
 
         // avoid nav/content
         // avoid nav/footer (allow main/article as content often lives there)
-        if (el.closest('nav,header,footer')) return false;
+        if (el.closest('nav,header,footer,h1,h2,h3,h4,h5,h6')) return false;
         if (el.tagName === 'A' && el.getAttribute('href')?.startsWith('#')) return false;
-        if ((el.textContent || '').length > 60) return false;
+        if ((el.textContent || '').length > 20) return false;
 
         return true;
       });
@@ -286,9 +299,8 @@
 
     if (!helper) return false;
 
-    helper.dataset.clicked = 'true';
-    forceClick(helper); // Use forceClick instead of helper.click()
-    recordAction();
+    // Apply delay for these keyword-based buttons
+    scheduleClick(helper, helper.textContent.trim().substring(0, 15));
     return true;
   }
 
