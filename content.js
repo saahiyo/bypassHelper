@@ -8,9 +8,7 @@
   // Check if extension is enabled
   const { extensionEnabled, loopPreventionEnabled } = await chrome.storage.local.get(['extensionEnabled', 'loopPreventionEnabled']);
   if (extensionEnabled === false) {
-    // We can't easily use log() here because CONFIG isn't fully defined yet, 
-    // but the console will show it if we just use console.log
-    if (true) console.log('[bypassHelper] Extension disabled via popup'); 
+    console.log('[bypassHelper] Extension disabled via popup');
     return;
   }
 
@@ -25,17 +23,30 @@
     LOOP_PREVENTION_ENABLED: loopPreventionEnabled !== undefined ? loopPreventionEnabled : true
   };
 
+  
+  // Hoisted regexes (avoid re-compilation per call)
+  const KEYWORDS_RE = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|go\s*to\s*link|dual\s*tap)/i;
+  const GATE_PATTERNS_RE = /ad-container|blockcont|contntblock|closeis|ad-text|overlay|gcont/i;
+  
   const log = (...a) => CONFIG.DEBUG && console.log('[bypassHelper]', ...a);
+  
+  log('Extension enabled:', extensionEnabled);
 
   try {
-    const response = await fetch(chrome.runtime.getURL('excluded_hosts.txt'));
-    const text = await response.text();
-    CONFIG.EXCLUDED_HOSTS = text
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
+    const cached = await chrome.storage.local.get('cachedExcludedHosts');
+    if (cached.cachedExcludedHosts) {
+      CONFIG.EXCLUDED_HOSTS = cached.cachedExcludedHosts;
+    } else {
+      const response = await fetch(chrome.runtime.getURL('excluded_hosts.txt'));
+      const text = await response.text();
+      CONFIG.EXCLUDED_HOSTS = text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+      chrome.storage.local.set({ cachedExcludedHosts: CONFIG.EXCLUDED_HOSTS });
+    }
   } catch (err) {
-    log('Error loading excluded_hosts.txt:', err);
+    log('Error loading excluded hosts:', err);
   }
 
   const isExcluded = CONFIG.EXCLUDED_HOSTS.some(pattern => {
@@ -60,7 +71,7 @@
    *****************************************************************/
   const detectors = {
     countdown() {
-      return [...document.querySelectorAll('*')]
+      return [...document.querySelectorAll('p, span, div, h1, h2, h3, h4, h5, h6, li, td, label, strong, em, b, i, a, button')]
         .some(e => /\b\d+\s*(sec|seconds|wait)\b/i.test(e.textContent));
     },
     disabledButtons() {
@@ -73,22 +84,21 @@
     overlays() {
       return [...document.querySelectorAll('div')]
         .some(d => {
-          const z = parseInt(getComputedStyle(d).zIndex, 10);
+          const inlineZ = d.style.zIndex;
+          const z = parseInt(inlineZ || getComputedStyle(d).zIndex, 10);
           return !isNaN(z) && z > 999;
         });
     },
     knownGates() {
-      const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text/i;
       return [...document.querySelectorAll('div, section, aside')]
-        .some(el => gatePatterns.test(el.className) || gatePatterns.test(el.id));
+        .some(el => GATE_PATTERNS_RE.test(el.className) || GATE_PATTERNS_RE.test(el.id));
     },
     actionButtons() {
-      const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|go\s*to\s*link|dual\s*tap)/i;
       return [...document.querySelectorAll('a,button,div')]
         .some(el => {
           // Relaxed visibility check for known IDs or if it's high priority
           const isKnownId = el.id === 'btn6' || el.id === 'rtg-snp2' || el.id === 'alt';
-          return (el.offsetParent || isKnownId) && keywords.test(el.textContent);
+          return (el.offsetParent || isKnownId) && KEYWORDS_RE.test(el.textContent);
         });
     }
   };
@@ -135,6 +145,37 @@
   /*****************************************************************
    * STATE-AWARE ACTIONS
    *****************************************************************/
+
+  // 0) HIGHEST PRIORITY: auto-redirect "Get Link" anchors to their href
+  function autoRedirectGetLink() {
+    // Match by id="get-link" or class containing "get-link"
+    const selectors = [
+      'a#gtelinkbtn[href]',
+      'a#get-link[href]',
+      'a.get-link[href]',
+      'a[id*="get-link"][href]',
+      'a[class*="get-link"][href]'
+    ];
+    const link = document.querySelector(selectors.join(','));
+
+    if (link && link.href && !link.dataset.redirected) {
+      const dest = link.href;
+      // Avoid redirecting to same page or empty/javascript links
+      if (
+        dest &&
+        !dest.startsWith('javascript:') &&
+        dest !== window.location.href &&
+        dest !== window.location.href + '#'
+      ) {
+        log('Auto-redirecting to Get Link destination:', dest);
+        link.dataset.redirected = 'true';
+        recordAction();
+        window.location.href = dest;
+        return true;
+      }
+    }
+    return false;
+  }
 
   // 1) FINAL STATE: submit RTG/SafeLink form directly (button may be hidden)
   function submitSafeLinkFormOnce() {
@@ -260,7 +301,7 @@
       return true;
     }
 
-    const idBtn = document.querySelector('#btn6, #rtg-snp2, #bt-success, #getlink1, #ga, #gi, #notarobot');
+    const idBtn = document.querySelector('#btn6, #rtg-snp2, #bt-success, #getlink1, #ga, #gi, #notarobot','#ProFooterAdClose','#ProStickyAdClose');
     
     if (idBtn && !idBtn.dataset.clicked) {
       log('Clicking specific gate:', '#' + idBtn.id);
@@ -270,7 +311,7 @@
       return true;
     }
 
-    const keywords = /(verify|human|start|next|continue|scroll\s*down|tab\s*scroll\s*down|get\s*link|get\s*started|go\s*to\s*link|dual\s*tap)/i;
+    const keywords = KEYWORDS_RE;
 
     const candidates = [...document.querySelectorAll('a,button,div')]
       .filter(el => {
@@ -313,12 +354,18 @@
   }
 
   function removeOverlays() {
-    const gatePatterns = /ad-container|blockcont|contntblock|closeis|ad-text|overlay|gcont/i;
     document.querySelectorAll('div, section, aside').forEach(d => {
-      const z = parseInt(getComputedStyle(d).zIndex, 10);
-      const isKnownGate = gatePatterns.test(d.className) || gatePatterns.test(d.id);
+      const isKnownGate = GATE_PATTERNS_RE.test(d.className) || GATE_PATTERNS_RE.test(d.id);
       
-      if (isKnownGate || (!isNaN(z) && z > 999)) {
+      if (isKnownGate) {
+        log('Removing overlay element:', d.className, d.id);
+        d.remove();
+        return;
+      }
+
+      const inlineZ = d.style.zIndex;
+      const z = parseInt(inlineZ || getComputedStyle(d).zIndex, 10);
+      if (!isNaN(z) && z > 999) {
         log('Removing overlay element:', d.className, d.id);
         d.remove();
       }
@@ -375,6 +422,7 @@
    *****************************************************************/
   function stopAll(reason) {
     stopped = true;
+    if (mutationTimer) { clearTimeout(mutationTimer); mutationTimer = null; }
     if (typeof observer !== 'undefined') observer.disconnect();
     if (typeof timer !== 'undefined') clearInterval(timer);
     log('Stopped:', reason);
@@ -386,6 +434,13 @@
       stopAll('Execution paused to prevent infinite loop');
       return;
     }
+
+    // Highest priority: auto-redirect Get Link anchors (runs before gate detection)
+    if (autoRedirectGetLink()) {
+      stopAll('Auto-redirected to Get Link destination');
+      return;
+    }
+
     if (!detectGate()) return;
 
     // Final state first (works even if button is hidden)
@@ -411,8 +466,13 @@
   /*****************************************************************
    * BOOTSTRAP
    *****************************************************************/
+  let mutationTimer = null;
   const observer = new MutationObserver(() => {
-    if (!stopped) execute();
+    if (stopped || mutationTimer) return;
+    mutationTimer = setTimeout(() => {
+      mutationTimer = null;
+      if (!stopped) execute();
+    }, 300);
   });
 
   observer.observe(document.documentElement, {
