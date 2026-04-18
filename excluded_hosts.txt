@@ -1,3 +1,4 @@
+# Link shorteners excluded from automation
 urllinkshort.in
 shortxlinks.com
 nowshort.com
@@ -6,8 +7,9 @@ makelinks.in
 link.get2short.com
 go.babylinks.in
 softurl.in
-inshorturl.in
 go.just2earn.com
+
+# Major platforms — never interfere
 google.com
 bing.com
 duckduckgo.com

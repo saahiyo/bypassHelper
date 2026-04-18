@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "bypassHelper",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Automatically detects link shorteners, skips intermediate pages, removes overlays, and blocks known ad networks.",
   "icons": {
     "16": "icon16.png",
@@ -46,16 +46,6 @@
       }
     ]
   },
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "excluded_hosts.txt"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ],
   "background": {
     "service_worker": "background.js"
   },

@@ -6,14 +6,16 @@
    *****************************************************************/
   
   // Check if extension is enabled
-  const { extensionEnabled, loopPreventionEnabled } = await chrome.storage.local.get(['extensionEnabled', 'loopPreventionEnabled']);
+  const { extensionEnabled, loopPreventionEnabled, debugEnabled } = await chrome.storage.local.get([
+    'extensionEnabled', 'loopPreventionEnabled', 'debugEnabled'
+  ]);
   if (extensionEnabled === false) {
     console.log('[bypassHelper] Extension disabled via popup');
     return;
   }
 
   const CONFIG = {
-    DEBUG: true,
+    DEBUG: debugEnabled ?? false,
     MAX_ACTIONS: 5,
     DETECTION_THRESHOLD: 2,
     ACTION_INTERVAL: 900,
@@ -32,31 +34,25 @@
   
   log('Extension enabled:', extensionEnabled);
 
+  // Load excluded hosts from storage (populated by background.js on install)
   try {
     const cached = await chrome.storage.local.get('cachedExcludedHosts');
     if (cached.cachedExcludedHosts) {
       CONFIG.EXCLUDED_HOSTS = cached.cachedExcludedHosts;
-    } else {
-      const response = await fetch(chrome.runtime.getURL('excluded_hosts.txt'));
-      const text = await response.text();
-      CONFIG.EXCLUDED_HOSTS = text
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
-      chrome.storage.local.set({ cachedExcludedHosts: CONFIG.EXCLUDED_HOSTS });
     }
   } catch (err) {
     log('Error loading excluded hosts:', err);
   }
 
-  const isExcluded = CONFIG.EXCLUDED_HOSTS.some(pattern => {
-    // Escape dots and replace * with .*
+  // Pre-compile excluded host regexes once
+  const excludedRegexes = CONFIG.EXCLUDED_HOSTS.map(pattern => {
     const regexSource = pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape all regex chars
       .replace(/\\\*/g, '.*'); // turn escaped \* back to .*
-    const regex = new RegExp(`${regexSource}$`, 'i');
-    return regex.test(location.hostname);
+    return new RegExp(`${regexSource}$`, 'i');
   });
+
+  const isExcluded = excludedRegexes.some(re => re.test(location.hostname));
 
   if (isExcluded) {
     log('Excluded host, exiting');
@@ -64,7 +60,12 @@
   }
 
   let actionCount = 0;
+  let lastActionAt = 0;
   let stopped = false;
+  let executing = false; // execution lock to prevent double-runs
+  let observer = null;
+  let timer = null;
+  let mutationTimer = null;
 
   /*****************************************************************
    * DETECTORS (gate presence)
@@ -84,8 +85,14 @@
     overlays() {
       return [...document.querySelectorAll('div')]
         .some(d => {
+          // Check inline style first (cheap) before falling back to getComputedStyle (expensive)
           const inlineZ = d.style.zIndex;
-          const z = parseInt(inlineZ || getComputedStyle(d).zIndex, 10);
+          if (inlineZ) {
+            const z = parseInt(inlineZ, 10);
+            return !isNaN(z) && z > 999;
+          }
+          // Only call getComputedStyle if no inline z-index
+          const z = parseInt(getComputedStyle(d).zIndex, 10);
           return !isNaN(z) && z > 999;
         });
     },
@@ -114,8 +121,8 @@
       if (detectors.knownGates()) { score += 5; gated = true; }
     }
 
-    // Retain engagement if we've already started acting
-    if (actionCount > 0) {
+    // Retain engagement only briefly after acting (avoid forcing gate forever)
+    if (actionCount > 0 && (Date.now() - lastActionAt) < 5000) {
       score += 3;
       gated = true;
     }
@@ -301,7 +308,9 @@
       return true;
     }
 
-    const idBtn = document.querySelector('#btn6, #rtg-snp2, #bt-success, #getlink1, #ga, #gi, #notarobot','#ProFooterAdClose','#ProStickyAdClose');
+    const idBtn = document.querySelector(
+      '#btn6, #rtg-snp2, #bt-success, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose'
+    );
     
     if (idBtn && !idBtn.dataset.clicked) {
       log('Clicking specific gate:', '#' + idBtn.id);
@@ -318,7 +327,6 @@
         if (el.dataset.clicked) return false;
         if (!keywords.test(el.textContent || '')) return false;
 
-        // avoid nav/content
         // avoid nav/footer (allow main/article as content often lives there)
         if (el.closest('nav,header,footer,h1,h2,h3,h4,h5,h6')) return false;
         if (el.tagName === 'A' && el.getAttribute('href')?.startsWith('#')) return false;
@@ -363,8 +371,18 @@
         return;
       }
 
+      // Check inline z-index first (cheap) before getComputedStyle (expensive)
       const inlineZ = d.style.zIndex;
-      const z = parseInt(inlineZ || getComputedStyle(d).zIndex, 10);
+      if (inlineZ) {
+        const z = parseInt(inlineZ, 10);
+        if (!isNaN(z) && z > 999) {
+          log('Removing overlay element:', d.className, d.id);
+          d.remove();
+          return;
+        }
+      }
+
+      const z = parseInt(getComputedStyle(d).zIndex, 10);
       if (!isNaN(z) && z > 999) {
         log('Removing overlay element:', d.className, d.id);
         d.remove();
@@ -406,6 +424,7 @@
 
       if (!data[host]) data[host] = [];
       data[host].push(now);
+      lastActionAt = now;
       
       // Cleanup old entries
       data[host] = data[host].filter(ts => (now - ts) < (CONFIG.LOOP_WINDOW * 2));
@@ -423,79 +442,119 @@
   function stopAll(reason) {
     stopped = true;
     if (mutationTimer) { clearTimeout(mutationTimer); mutationTimer = null; }
-    if (typeof observer !== 'undefined') observer.disconnect();
-    if (typeof timer !== 'undefined') clearInterval(timer);
+    if (observer) { observer.disconnect(); observer = null; }
+    if (timer) { clearInterval(timer); timer = null; }
     log('Stopped:', reason);
   }
 
   function execute() {
-    if (stopped) return;
-    if (!checkLoop()) {
-      stopAll('Execution paused to prevent infinite loop');
-      return;
-    }
+    if (stopped || executing) return;
+    executing = true;
 
-    // Highest priority: auto-redirect Get Link anchors (runs before gate detection)
-    if (autoRedirectGetLink()) {
-      stopAll('Auto-redirected to Get Link destination');
-      return;
-    }
+    try {
+      if (!checkLoop()) {
+        stopAll('Execution paused to prevent infinite loop');
+        return;
+      }
 
-    if (!detectGate()) return;
+      // Highest priority: auto-redirect Get Link anchors (runs before gate detection)
+      if (autoRedirectGetLink()) {
+        stopAll('Auto-redirected to Get Link destination');
+        return;
+      }
 
-    // Final state first (works even if button is hidden)
-    if (submitSafeLinkFormOnce()) {
-      stopAll('Gate completed (form submitted)');
-      return;
-    }
+      if (!detectGate()) return;
 
-    // Mid state: advance the gate
-    if (clickGateHelperOnce()) {
-      return; // wait for DOM mutation to unlock next state
-    }
+      // Final state first (works even if button is hidden)
+      if (submitSafeLinkFormOnce()) {
+        stopAll('Gate completed (form submitted)');
+        return;
+      }
 
-    // Cleanup
-    unlockButtons();
-    removeOverlays();
+      // Mid state: advance the gate
+      if (clickGateHelperOnce()) {
+        return; // wait for DOM mutation to unlock next state
+      }
 
-    if (actionCount >= CONFIG.MAX_ACTIONS) {
-      stopAll('Max actions reached');
+      // Cleanup
+      unlockButtons();
+      removeOverlays();
+
+      if (actionCount >= CONFIG.MAX_ACTIONS) {
+        stopAll('Max actions reached');
+      }
+    } finally {
+      executing = false;
     }
   }
 
-  /*****************************************************************
-   * BOOTSTRAP
-   *****************************************************************/
-  let mutationTimer = null;
-  const observer = new MutationObserver(() => {
-    if (stopped || mutationTimer) return;
-    mutationTimer = setTimeout(() => {
-      mutationTimer = null;
+  function startAll(reason) {
+    if (!stopped && observer && timer) return;
+    stopped = false;
+    if (mutationTimer) { clearTimeout(mutationTimer); mutationTimer = null; }
+
+    observer = new MutationObserver(() => {
+      if (stopped || mutationTimer) return;
+      mutationTimer = setTimeout(() => {
+        mutationTimer = null;
+        if (!stopped) execute();
+      }, 300);
+    });
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributeFilter: ['disabled', 'style', 'class', 'href'] // only watch relevant attributes
+    });
+
+    timer = setInterval(() => {
       if (!stopped) execute();
-    }, 300);
-  });
+      else if (timer) { clearInterval(timer); timer = null; }
+    }, CONFIG.ACTION_INTERVAL);
 
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true
-  });
+    log('Started:', reason);
+    execute();
+  }
 
-  const timer = setInterval(() => {
-    if (!stopped) execute();
-    else clearInterval(timer);
-  }, CONFIG.ACTION_INTERVAL);
-
-  // Initial execution AFTER setup
-  execute();
+  /*****************************************************************
+   * BOOTSTRAP — wait for DOM before first execution
+   *****************************************************************/
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => startAll('Initial load'));
+  } else {
+    startAll('Initial load');
+  }
 
   /*****************************************************************
    * EVENT LISTENERS (Communication with shortcuts.js)
    *****************************************************************/
   window.addEventListener('bypassHelper:forceExecute', () => {
     log('Force bypass execution triggered via event');
-    stopped = false;
-    execute();
+    startAll('Force execute');
+  });
+
+  /*****************************************************************
+   * LIVE TOGGLES
+   *****************************************************************/
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+
+    if (Object.prototype.hasOwnProperty.call(changes, 'extensionEnabled')) {
+      const enabled = changes.extensionEnabled.newValue;
+      if (enabled === false) stopAll('Disabled via popup');
+      else startAll('Enabled via popup');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(changes, 'loopPreventionEnabled')) {
+      const enabled = changes.loopPreventionEnabled.newValue;
+      CONFIG.LOOP_PREVENTION_ENABLED = enabled !== undefined ? enabled : true;
+      log('Loop prevention updated:', CONFIG.LOOP_PREVENTION_ENABLED);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(changes, 'debugEnabled')) {
+      CONFIG.DEBUG = changes.debugEnabled.newValue ?? false;
+      log('Debug mode updated:', CONFIG.DEBUG);
+    }
   });
 
 })();

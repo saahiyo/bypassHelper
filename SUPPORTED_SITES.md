@@ -68,12 +68,18 @@ The extension automatically blocks resources from known ad networks:
 |------------|--------|
 | Google DoubleClick | `doubleclick.net` |
 | Google AdSense | `googlesyndication.com` |
+| Google Ad Service | `adservice.google.com` |
+| Google PageAd | `pagead2.googlesyndication.com` |
+| AppNexus | `adnxs.com` |
+| Taboola | `taboola.com` |
+| Outbrain | `outbrain.com` |
+| Advertising.com | `advertising.com` |
 
 This blocking applies to:
 - Scripts
 - Images
 - XMLHttpRequests
-- Sub-frames (for DoubleClick)
+- Sub-frames
 
 ---
 
@@ -91,16 +97,20 @@ The extension completely bypasses these major platforms to avoid interference:
 - `instagram.com`
 - `youtube.com`
 - `reddit.com`
+- `mega.nz`
 
 ### Excluded Link Shorteners
 These specific shortener domains are excluded from automation:
 
-- `arolinks.com`
 - `urllinkshort.in`
 - `shortxlinks.com`
 - `nowshort.com`
-- `inshorturl.com`
+- `inshorturl.in`
 - `makelinks.in`
+- `link.get2short.com`
+- `go.babylinks.in`
+- `softurl.in`
+- `go.just2earn.com`
 
 ---
 
@@ -109,21 +119,25 @@ These specific shortener domains are excluded from automation:
 ### Automated Actions
 The extension performs these actions in priority order:
 
-1. **Submit Gate Forms** - Submits hidden forms directly (bypasses button visibility)
-2. **Click Helper Buttons** - Clicks "verify", "human", "start", "next", or "continue" buttons
-3. **Unlock Disabled Buttons** - Re-enables all disabled buttons on the page
-4. **Remove Overlays** - Removes high z-index overlays and restores scrolling
+1. **Auto-Redirect Get Link** - Detects "Get Link" anchors and redirects automatically
+2. **Submit Gate Forms** - Submits hidden forms directly (bypasses button visibility)
+3. **Click Helper Buttons** - Clicks "verify", "human", "start", "next", or "continue" buttons
+4. **Unlock Disabled Buttons** - Re-enables all disabled buttons on the page
+5. **Remove Overlays** - Removes high z-index overlays and restores scrolling
 
 ### Execution Limits
 - Maximum actions per page: 5
-- Detection threshold: 6 points (must meet certain criteria to act)
+- Detection threshold: 2 points (must meet certain criteria to act)
 - Action interval: 900ms (prevents rapid-fire actions)
+- Loop limit: 10 actions per 10-second window
 
 ### Safety Features
 - Won't interfere with navigation, header, footer, article, or main content elements
 - Avoids clicking anchor links starting with `#`
-- Skips elements with text longer than 60 characters
+- Skips elements with text longer than 20 characters
 - Only interacts with elements that are visible in the DOM
+- Loop prevention stops automation if too many actions are detected
+- Waits for DOM readiness before executing (avoids timing issues)
 
 ---
 
@@ -140,6 +154,15 @@ The extension performs these actions in priority order:
    - When you encounter a link shortener or intermediate page
    - The extension detects the gate mechanism
    - Automatically bypasses it and takes you to the final destination
+
+4. **Popup Controls**
+   - Toggle extension on/off
+   - Toggle loop prevention on/off
+   - Toggle debug logging on/off
+
+5. **Keyboard Shortcuts**
+   - `Ctrl+Shift+B` — Scroll to bottom + force bypass execution
+   - `Ctrl+Shift+T` — Scroll to top of page
 
 ---
 
@@ -191,7 +214,7 @@ User arrives: Final destination (skips intermediate page)
 
 ## Version
 
-Current version: 1.1.0
+Current version: 1.2.0
 
 ---
 
