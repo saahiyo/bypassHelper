@@ -44,7 +44,24 @@
     log('Error loading excluded hosts:', err);
   }
 
-  // Pre-compile excluded host regexes once
+  // Load user-excluded sites (added via popup "Disable on this site" button)
+  let userExcludedSites = [];
+  try {
+    const userData = await chrome.storage.local.get('userExcludedSites');
+    if (userData.userExcludedSites) {
+      userExcludedSites = userData.userExcludedSites;
+    }
+  } catch (err) {
+    log('Error loading user-excluded sites:', err);
+  }
+
+  // Check user-excluded sites first (exact hostname match)
+  if (userExcludedSites.includes(location.hostname)) {
+    log('Site disabled by user, exiting');
+    return;
+  }
+
+  // Pre-compile built-in excluded host regexes once
   const excludedRegexes = CONFIG.EXCLUDED_HOSTS.map(pattern => {
     const regexSource = pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape all regex chars

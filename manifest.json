@@ -33,6 +33,8 @@
     "<all_urls>"
   ],
   "permissions": [
+    "activeTab",
+    "tabs",
     "storage",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess"
