@@ -53,6 +53,20 @@
                 <span id="site-toggle-text">Disable on this site</span>
             </button>
             <p class="site-hostname" id="site-hostname"></p>
+
+            <!-- Excluded sites notepad -->
+            <div class="notepad-section">
+                <div class="notepad-header">
+                    <span class="notepad-title">Excluded Sites</span>
+                    <span class="notepad-hint">One hostname per line</span>
+                </div>
+                <textarea id="excluded-textarea" spellcheck="false" placeholder="example.com&#10;blog.example.org&#10;ads.website.net"></textarea>
+                <div class="notepad-actions">
+                    <span class="notepad-count" id="excluded-count">0 sites</span>
+                    <button class="save-btn" id="save-excluded">Save</button>
+                </div>
+                <div class="save-status" id="save-status"></div>
+            </div>
             
             <div class="status-message" id="status-msg">
                 Extension is active

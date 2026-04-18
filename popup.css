@@ -166,6 +166,110 @@ input:checked + .slider:before {
     word-break: break-all;
 }
 
+/* Notepad Section */
+.notepad-section {
+    margin-top: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background-color: var(--card-bg);
+    overflow: hidden;
+}
+
+.notepad-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.notepad-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.notepad-hint {
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+#excluded-textarea {
+    width: 100%;
+    min-height: 90px;
+    max-height: 150px;
+    padding: 10px 14px;
+    border: none;
+    outline: none;
+    resize: vertical;
+    background-color: #141c2e;
+    color: #c4d4e8;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    box-sizing: border-box;
+}
+
+#excluded-textarea::placeholder {
+    color: #3d4f6a;
+}
+
+#excluded-textarea:focus {
+    background-color: #161f33;
+}
+
+.notepad-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    border-top: 1px solid var(--border-color);
+}
+
+.notepad-count {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.save-btn {
+    padding: 5px 16px;
+    border: none;
+    border-radius: 6px;
+    background-color: var(--accent-color);
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.save-btn:hover {
+    background-color: var(--accent-hover);
+}
+
+.save-btn:active {
+    transform: scale(0.97);
+}
+
+.save-status {
+    text-align: center;
+    font-size: 11px;
+    color: var(--success-color);
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.save-status.visible {
+    padding: 6px 14px;
+    max-height: 30px;
+    opacity: 1;
+}
+
 /* Status Message */
 .status-message {
     text-align: center;
@@ -173,7 +277,7 @@ input:checked + .slider:before {
     padding: 8px;
     color: var(--success-color);
     font-weight: 500;
-    opacity: 0; /* Hidden by default */
+    opacity: 0;
     transition: opacity 0.3s ease;
 }
 
