@@ -10,9 +10,11 @@
     'extensionEnabled', 'loopPreventionEnabled', 'debugEnabled'
   ]);
   if (extensionEnabled === false) {
+    document.documentElement.dataset.bypassHelperEnabled = 'false';
     console.log('[bypassHelper] Extension disabled via popup');
     return;
   }
+  document.documentElement.dataset.bypassHelperEnabled = 'true';
 
   const CONFIG = {
     DEBUG: debugEnabled ?? false,
@@ -57,6 +59,7 @@
 
   // Check user-excluded sites first (exact hostname match)
   if (userExcludedSites.includes(location.hostname)) {
+    document.documentElement.dataset.bypassHelperEnabled = 'false';
     log('Site disabled by user, exiting');
     return;
   }
@@ -72,6 +75,7 @@
   const isExcluded = excludedRegexes.some(re => re.test(location.hostname));
 
   if (isExcluded) {
+    document.documentElement.dataset.bypassHelperEnabled = 'false';
     log('Excluded host, exiting');
     return;
   }
@@ -166,6 +170,14 @@
     return score >= CONFIG.DETECTION_THRESHOLD;
   }
 
+  function isSecurityChallenge() {
+    return document.title.includes('Just a moment') || 
+           document.title.includes('Just a second') || 
+           document.title.includes('Checking your browser') ||
+           (document.body && document.body.innerText.includes('Performing security verification')) ||
+           !!document.querySelector('.cf-turnstile, #turnstile-wrapper, #challange-form');
+  }
+
   /*****************************************************************
    * STATE-AWARE ACTIONS
    *****************************************************************/
@@ -217,8 +229,8 @@
     // Filter out common non-gate forms (like WordPress comments)
     const action = form.getAttribute('action') || '';
     if (action.includes('wp-comments-post.php') || action.includes('contact-form')) return false;
-    
-    // User requested exclusion for this specific path
+
+    // Server-validated timer forms — submitting early causes "Bad Request"
     if (action.includes('links/go')) return false;
 
     const hasHiddenToken = !!form.querySelector("input[type='hidden']");
@@ -461,12 +473,22 @@
     if (mutationTimer) { clearTimeout(mutationTimer); mutationTimer = null; }
     if (observer) { observer.disconnect(); observer = null; }
     if (timer) { clearInterval(timer); timer = null; }
+    document.documentElement.dataset.bypassHelperEnabled = 'false';
     log('Stopped:', reason);
   }
 
   function execute() {
     if (stopped || executing) return;
     executing = true;
+
+    if (isSecurityChallenge()) {
+      document.documentElement.dataset.bypassHelperEnabled = 'false';
+      log('Security challenge detected, suspending timer speedup');
+      // We don't stopAll here because the challenge might resolve and we might want to resume 
+      // on the next page, but we definitely stop the current execution loop.
+      executing = false;
+      return; 
+    }
 
     try {
       if (!checkLoop()) {
@@ -530,6 +552,7 @@
     }, CONFIG.ACTION_INTERVAL);
 
     log('Started:', reason);
+    document.documentElement.dataset.bypassHelperEnabled = 'true';
     execute();
   }
 
