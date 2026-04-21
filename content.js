@@ -216,15 +216,23 @@
   // 1) FINAL STATE: submit RTG/SafeLink form directly (button may be hidden)
   function submitSafeLinkFormOnce() {
     // 0. Warmup check: wait 3 seconds for page tokens/scripts to ready
-    if (performance.now() < 3000) {
+    if (performance.now() < 1000) {
       log('Waiting for page warmup...');
       return false;
     }
 
     const form = document.querySelector(
-      "form#rtgForm, form[name='rtg'], form[action][method='post']"
+      "form#rtg, form#rtgForm, form[name='rtg'], form[id^='rtg'], form[action][method='post']"
     );
     if (!form || form.dataset.submitted) return false;
+
+    // Don't submit forms that are inside hidden containers (e.g. #rtg-btn1 with display:none)
+    // They become visible only after a prior gate step is completed
+    const hiddenParent = form.closest('[style*="display: none"], [style*="display:none"]');
+    if (hiddenParent) {
+      log('Form found but inside hidden container, skipping:', hiddenParent.id || 'unknown');
+      return false;
+    }
 
     // Filter out common non-gate forms (like WordPress comments)
     const action = form.getAttribute('action') || '';
@@ -237,7 +245,7 @@
     if (!hasHiddenToken) return false;
 
     // Try to find the submit button first
-    const sub = form.querySelector('button[type="submit"], input[type="submit"]');
+    const sub = form.querySelector('button, input[type="submit"]');
     
     // If specific "Get Link" style text is found in the button, prioritize it
     // helpful for forms that have multiple buttons
@@ -337,13 +345,57 @@
       return true;
     }
 
-    const idBtn = document.querySelector(
-      '#btn6, #rtg-snp2, #bt-success, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose'
+    // Look for specific gate buttons by ID
+    let idBtn = document.querySelector(
+      '#btn6, #rtg-snp2, #rtg-snp21, #bt-success, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id^="rtg-snp"]'
     );
     
-    if (idBtn && !idBtn.dataset.clicked) {
-      log('Clicking specific gate:', '#' + idBtn.id);
+    // Also look for buttons by class (e.g. "GO TO LINK - CLICK OPEN" with class .bt-success)
+    if (!idBtn) {
+      idBtn = document.querySelector('button.bt-success, button.btn-success');
+    }
+    
+    if (idBtn) {
+      // If we matched a container DIV (like #rtg-snp21), drill down to find the actual button inside
+      if (idBtn.tagName === 'DIV' || idBtn.tagName === 'SECTION') {
+        const innerBtn = idBtn.querySelector('button, a, input[type="submit"]');
+        if (innerBtn) {
+          log('Found container', '#' + idBtn.id, '- drilling down to inner button');
+          // Check if inner button's container is visible
+          const hiddenParent = innerBtn.closest('[style*="display: none"], [style*="display:none"]');
+          if (hiddenParent) {
+            log('Inner button is hidden, skipping');
+            return false;
+          }
+          idBtn = innerBtn;
+        }
+      }
+
+      const multiTapIds = ['getlink1', 'btn6', 'rtg-snp2', 'rtg-snp21'];
+      const btnId = idBtn.id || '';
+      const isMultiTap = multiTapIds.includes(btnId) || btnId.startsWith('rtg-snp');
+      const btnText = (idBtn.textContent || '').toLowerCase();
+      
+      // 1. Skip if already finished
+      if (idBtn.dataset.finalClicked === 'true') return false;
+
+      // 2. Skip if "wait" state is active (timer is running)
+      if (btnText.includes('wait')) return false;
+
+      // 3. Handle clicking
+      if (idBtn.dataset.clicked === 'true') {
+        if (!isMultiTap) return false;
+        
+        // For multi-tap, only click again if the text changed from the previous click
+        if (idBtn.dataset.lastText === btnText) return false;
+        
+        log('Multi-tap button state changed, clicking again:', '#' + idBtn.id || idBtn.className);
+        idBtn.dataset.finalClicked = 'true'; 
+      }
+
+      log('Clicking specific gate:', '#' + (idBtn.id || idBtn.className), isMultiTap ? '(Multi-tap sequence)' : '');
       idBtn.dataset.clicked = 'true';
+      idBtn.dataset.lastText = btnText;
       forceClick(idBtn);
       recordAction();
       return true;
