@@ -73,10 +73,9 @@ loadExcludedHosts();
  *****************************************************************/
 function updateBadge(enabled) {
   if (enabled === false) {
-    chrome.action.setBadgeText({ text: 'OFF' });
-    chrome.action.setBadgeBackgroundColor({ color: '#475569' });
+    chrome.action.setBadgeText({ text: '' }); // hides the badge
   } else {
-    chrome.action.setBadgeText({ text: 'ON' });
+    chrome.action.setBadgeText({ text: '•' }); // green dot
     chrome.action.setBadgeBackgroundColor({ color: '#22c55e' });
   }
 }
