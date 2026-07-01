@@ -7,103 +7,111 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Bypass Helper</h1>
-            <p class="version">v1.3.0</p>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <img class="logo" src="icon48.png" alt="logo">
+                <span class="title">Bypass Helper</span>
+            </div>
+            <span class="version-tag">v1.3.0</span>
         </header>
 
-        <!-- Bypass Stats -->
-        <div class="stats-bar">
-            <div class="stat-item">
+        <!-- Stats Panel -->
+        <div class="stats-panel">
+            <div class="stat-cell">
+                <span class="stat-label">TODAY</span>
                 <span class="stat-value" id="stat-today">0</span>
-                <span class="stat-label">Today</span>
             </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
+            <div class="stat-cell-divider"></div>
+            <div class="stat-cell">
+                <span class="stat-label">TOTAL</span>
                 <span class="stat-value" id="stat-total">0</span>
-                <span class="stat-label">Total</span>
             </div>
         </div>
-        
-        <main>
-            <div class="control-group">
-                <div class="label-group">
-                    <span class="control-label">Enable Extension</span>
-                    <span class="control-desc">Turn bypass functionality on or off</span>
+
+        <main class="app-main">
+            <!-- Settings Group Panel -->
+            <div class="settings-group">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <label class="setting-title" for="enabled-toggle">Enable Extension</label>
+                        <span class="setting-desc">Turn bypass functionality on/off</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="enabled-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" id="enabled-toggle">
-                    <span class="slider round"></span>
-                </label>
+
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <label class="setting-title" for="loop-toggle">Loop Prevention</label>
+                        <span class="setting-desc">Pause if too many actions</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="loop-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <label class="setting-title" for="debug-toggle">Debug Logging</label>
+                        <span class="setting-desc">Log actions to browser console</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="debug-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
             </div>
 
-            <div class="control-group">
-                <div class="label-group">
-                    <span class="control-label">Loop Prevention</span>
-                    <span class="control-desc">Pause if too many actions</span>
-                </div>
-                <label class="switch">
-                    <input type="checkbox" id="loop-toggle">
-                    <span class="slider round"></span>
-                </label>
+            <!-- Page Action Buttons -->
+            <div class="actions-section">
+                <button class="btn btn-primary" id="force-bypass-btn">
+                    <span class="icon">⚡</span>
+                    <span class="text">Force Bypass Page</span>
+                </button>
+
+                <button class="btn btn-secondary" id="site-toggle-btn">
+                    <span class="icon" id="site-toggle-icon">🚫</span>
+                    <span class="text" id="site-toggle-text">Disable on this site</span>
+                </button>
+                <div class="site-hostname" id="site-hostname"></div>
             </div>
 
-            <div class="control-group">
-                <div class="label-group">
-                    <span class="control-label">Debug Logging</span>
-                    <span class="control-desc">Log actions to browser console</span>
+            <!-- Excluded Sites Editor -->
+            <div class="notepad-container">
+                <div class="notepad-bar">
+                    <span class="notepad-title">Excluded Domains</span>
+                    <span class="notepad-count" id="excluded-count">0 domains</span>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" id="debug-toggle">
-                    <span class="slider round"></span>
-                </label>
-            </div>
-
-            <!-- Force Bypass Button -->
-            <button class="force-btn" id="force-bypass-btn">
-                <span>⚡</span>
-                <span>Force Bypass</span>
-            </button>
-
-            <!-- Per-site disable button -->
-            <button class="site-btn" id="site-toggle-btn">
-                <span id="site-toggle-icon">🚫</span>
-                <span id="site-toggle-text">Disable on this site</span>
-            </button>
-            <p class="site-hostname" id="site-hostname"></p>
-
-            <!-- Excluded sites notepad -->
-            <div class="notepad-section">
-                <div class="notepad-header">
-                    <span class="notepad-title">Excluded Sites</span>
-                    <span class="notepad-hint">One hostname per line</span>
-                </div>
-                <textarea id="excluded-textarea" spellcheck="false" placeholder="example.com&#10;blog.example.org&#10;ads.website.net"></textarea>
-                <div class="notepad-actions">
-                    <span class="notepad-count" id="excluded-count">0 sites</span>
-                    <button class="save-btn" id="save-excluded">Save</button>
+                <textarea id="excluded-textarea" spellcheck="false" placeholder="domain.com&#10;another.net"></textarea>
+                <div class="notepad-footer">
+                    <span class="notepad-hint">One domain per line</span>
+                    <button class="btn-save" id="save-excluded">Save Changes</button>
                 </div>
                 <div class="save-status" id="save-status"></div>
             </div>
-            
-            <div class="status-message" id="status-msg">
+
+            <div class="status-indicator" id="status-msg">
                 Extension is active
             </div>
         </main>
-        
-        <footer>
+
+        <!-- Footer -->
+        <footer class="app-footer">
             <div class="footer-links">
                 <a href="https://github.com/saahiyo/bypassHelper" target="_blank">GitHub</a>
-                <span class="separator">•</span>
+                <span class="dot-sep">•</span>
                 <a href="https://github.com/saahiyo/bypassHelper/issues" target="_blank">Report Issue</a>
             </div>
-            <div class="shortcuts-bar">
-                <kbd>Ctrl+Shift+B</kbd> <span class="shortcut-desc">Bypass</span>
-                <span class="shortcut-sep">|</span>
-                <kbd>Ctrl+Shift+U</kbd> <span class="shortcut-desc">Top</span>
+            <div class="shortcuts-legend">
+                <span class="shortcut-item"><kbd>Ctrl+Shift+B</kbd> bypass</span>
+                <span class="shortcut-item"><kbd>Ctrl+Shift+U</kbd> top</span>
             </div>
-            <div class="credits-bar">
+            <div class="credits">
                 Logo by <a href="https://www.behance.net/dan_loptr" target="_blank">Dan Loptr</a>
             </div>
         </footer>

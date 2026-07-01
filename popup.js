@@ -199,10 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatus(enabled) {
         if (enabled) {
             statusMsg.textContent = 'Extension is active';
-            statusMsg.className = 'status-message visible';
+            statusMsg.className = 'status-indicator visible';
         } else {
             statusMsg.textContent = 'Extension is disabled';
-            statusMsg.className = 'status-message visible disabled';
+            statusMsg.className = 'status-indicator visible disabled';
         }
     }
 
