@@ -4,8 +4,7 @@
  * KEYBOARD SHORTCUTS (simplified)
  *****************************************************************/
 const COMMAND_MAP = {
-  'go-to-bottom': 'goToBottom',
-  'go-to-top': 'goToTop'
+  'go-to-bottom': 'goToBottom'
 };
 
 chrome.commands.onCommand.addListener((command) => {

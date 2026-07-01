@@ -228,16 +228,7 @@ input:checked + .toggle-slider:before {
     box-sizing: border-box;
 }
 
-.btn-primary {
-    background-color: var(--accent-bg);
-    border: 1px solid var(--accent-blue);
-    color: var(--accent-blue);
-}
 
-.btn-primary:hover {
-    background-color: rgba(56, 139, 253, 0.15);
-    border-color: var(--accent-hover);
-}
 
 .btn-secondary {
     background-color: var(--bg-secondary);
@@ -260,18 +251,7 @@ input:checked + .toggle-slider:before {
     background-color: rgba(63, 185, 80, 0.15);
 }
 
-/* Banner/State feedback for specific buttons */
-#force-bypass-btn.success {
-    background-color: var(--success-bg);
-    border-color: var(--success-color);
-    color: var(--success-color);
-}
 
-#force-bypass-btn.error {
-    background-color: var(--danger-bg);
-    border-color: var(--danger-color);
-    color: var(--danger-color);
-}
 
 .site-hostname {
     text-align: center;
@@ -466,19 +446,7 @@ kbd {
     line-height: 1;
 }
 
-.credits {
-    font-size: 9px;
-    color: var(--text-muted);
-}
 
-.credits a {
-    color: var(--text-secondary);
-    text-decoration: none;
-}
-
-.credits a:hover {
-    color: var(--accent-blue);
-}
 
 /* Custom Scrollbar for Textarea */
 ::-webkit-scrollbar {

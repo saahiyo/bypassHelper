@@ -19,14 +19,6 @@
         behavior: 'smooth'
       });
       sendResponse({ success: true });
-    } else if (request.action === 'goToTop') {
-      log('Keyboard shortcut triggered - scrolling to top');
-      // Scroll to top of page
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-      sendResponse({ success: true });
     }
     return true; // keep message channel open for sendResponse
   });

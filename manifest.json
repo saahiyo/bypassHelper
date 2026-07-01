@@ -69,14 +69,7 @@
         "default": "Ctrl+Shift+B",
         "mac": "Command+Shift+B"
       },
-      "description": "Scroll to bottom of page"
-    },
-    "go-to-top": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+U",
-        "mac": "Command+Shift+U"
-      },
-      "description": "Scroll to top of page"
+      "description": "Scroll to bottom of page and force bypass"
     }
   }
 }
