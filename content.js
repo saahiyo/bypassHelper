@@ -434,6 +434,42 @@
       return true;
     }
 
+    // 2.5) SPECIAL GATE: Simulator for "Click on ads and wait" gates (e.g. sayphotobooth.com)
+    // These gates wait for a window blur event, wait 10+ seconds, then look for a window focus/pageshow event.
+    const instructionEl = document.querySelector('#instructionText, .message-text, [class*="instruction"]');
+    if (instructionEl && /click\s*on\s*ad|ads\s*wait/i.test(instructionEl.textContent)) {
+      const parentForm = instructionEl.closest('form') || document.querySelector('form#tp, form[name="tp"]');
+      const gateBtn = document.querySelector('#link, button.tp-btn, .tp-btn');
+      
+      // Only execute this if the gate button is still hidden/disabled (waiting for ad click)
+      if (gateBtn && (gateBtn.disabled || gateBtn.style.display === 'none' || getComputedStyle(gateBtn).display === 'none') && !instructionEl.dataset.bypassSimulated) {
+        log('Simulating ad click blur/focus flow to unlock button');
+        instructionEl.dataset.bypassSimulated = 'true';
+
+        // 1. Dispatch blur event immediately
+        window.dispatchEvent(new Event('blur'));
+        if (typeof document.hasFocus === 'function') {
+          // Attempt to override focus check briefly
+          const originalHasFocus = document.hasFocus;
+          document.hasFocus = () => false;
+          setTimeout(() => { document.hasFocus = originalHasFocus; }, 12000);
+        }
+
+        // 2. Dispatch focus/pageshow events after a delay to simulate waiting away
+        setTimeout(() => {
+          if (stopped) return;
+          log('Simulating return focus to page');
+          window.dispatchEvent(new Event('focus'));
+          window.dispatchEvent(new Event('pageshow'));
+          // Force visibility state switch if page checks it
+          Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }, 11000); // 11 seconds to safely clear the 10-second threshold
+
+        return true;
+      }
+    }
+
     const keywords = KEYWORDS_RE;
 
     const candidates = [...document.querySelectorAll('a,button,div')]
