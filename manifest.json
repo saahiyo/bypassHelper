@@ -66,10 +66,17 @@
   "commands": {
     "go-to-bottom": {
       "suggested_key": {
-        "default": "Ctrl+Shift+B",
-        "mac": "Command+Shift+B"
+        "default": "Ctrl+Down",
+        "mac": "Command+Down"
       },
       "description": "Scroll to bottom of page and force bypass"
+    },
+    "go-to-top": {
+      "suggested_key": {
+        "default": "Ctrl+Up",
+        "mac": "Command+Up"
+      },
+      "description": "Scroll to top of page"
     }
   }
 }
