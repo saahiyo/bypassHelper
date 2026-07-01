@@ -487,6 +487,24 @@ kbd {
     font-size: 12px;
 }
 
+/* Credits Bar */
+.credits-bar {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 500;
+    margin-top: 4px;
+}
+
+.credits-bar a {
+    color: #94a3b8;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.credits-bar a:hover {
+    color: #60a5fa;
+}
+
 /* Styling the scrollbar for the textarea */
 ::-webkit-scrollbar {
     width: 8px;

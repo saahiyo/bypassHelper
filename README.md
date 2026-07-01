@@ -39,3 +39,8 @@ To install this extension, you can load it as an unpacked extension in your brow
 2.  Click "This Firefox".
 3.  Click "Load Temporary Add-on...".
 4.  Select the `manifest.json` file in this repository's directory.
+
+## Credits
+
+- Logo design by [Dan Loptr](https://www.behance.net/dan_loptr)
+
