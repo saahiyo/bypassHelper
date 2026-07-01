@@ -235,7 +235,23 @@
     const form = document.querySelector(
       "form#rtg, form#rtgForm, form[name='rtg'], form[id^='rtg'], form[action][method='post']"
     );
-    if (!form || form.dataset.submitted) return false;
+    if (!form) return false;
+
+    // Fallback: If we clicked the submit button on a previous tick but are still on this page,
+    // the page script likely intercepted and prevented the submit event. Submit directly.
+    if (form.dataset.bypassHelperSubmitted === 'clicked') {
+      log('Click did not navigate, performing direct programmatic form submission as fallback:', form.action);
+      form.dataset.bypassHelperSubmitted = 'submitted';
+      try {
+        HTMLFormElement.prototype.submit.call(form);
+      } catch (e) {
+        log('Direct submission fallback failed:', e);
+      }
+      recordAction();
+      return true;
+    }
+
+    if (form.dataset.bypassHelperSubmitted === 'submitted') return false;
 
     // Don't submit forms that are inside hidden containers (e.g. #rtg-btn1 with display:none)
     // They become visible only after a prior gate step is completed
@@ -268,7 +284,7 @@
     
     if (sub) {
       log('Found submit button, clicking it:', form.action);
-      form.dataset.submitted = 'true';
+      form.dataset.bypassHelperSubmitted = 'clicked';
       forceClick(sub);
       recordAction();
       return true;
@@ -276,7 +292,7 @@
 
     // Fallback: requestSubmit() triggers event listeners (standard behavior)
     log('No submit button found, using requestSubmit:', form.action);
-    form.dataset.submitted = 'true';
+    form.dataset.bypassHelperSubmitted = 'submitted';
     
     try {
       if (typeof form.requestSubmit === 'function') {
