@@ -18,12 +18,14 @@
         }
 
         // DOM elements (only if load state allows)
-        if (document.querySelector('.cf-browser-verification, .cf-turnstile, #turnstile-wrapper, #challange-form')) return true;
+        if (document.querySelector('.cf-browser-verification, .cf-turnstile, #turnstile-wrapper, #challenge-form')) return true;
         if (document.body && (document.body.innerText.includes('Performing security verification') || document.body.innerText.includes('Verify you are human'))) return true;
 
         return false;
     };
 
+    // NOTE: This list is duplicated from excluded_hosts.txt because MAIN world
+    // scripts cannot access chrome.storage. Keep both lists in sync.
     const EXCLUDED_HOSTS = [
         'google.com', 'bing.com', 'duckduckgo.com', 'yahoo.com',
         'facebook.com', 'twitter.com', 'x.com', 'instagram.com',

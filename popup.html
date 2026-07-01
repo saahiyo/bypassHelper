@@ -10,8 +10,21 @@
     <div class="container">
         <header>
             <h1>Bypass Helper</h1>
-            <p class="version">v1.2.0</p>
+            <p class="version">v1.3.0</p>
         </header>
+
+        <!-- Bypass Stats -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-value" id="stat-today">0</span>
+                <span class="stat-label">Today</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-total">0</span>
+                <span class="stat-label">Total</span>
+            </div>
+        </div>
         
         <main>
             <div class="control-group">
@@ -47,6 +60,12 @@
                 </label>
             </div>
 
+            <!-- Force Bypass Button -->
+            <button class="force-btn" id="force-bypass-btn">
+                <span>⚡</span>
+                <span>Force Bypass</span>
+            </button>
+
             <!-- Per-site disable button -->
             <button class="site-btn" id="site-toggle-btn">
                 <span id="site-toggle-icon">🚫</span>
@@ -74,9 +93,16 @@
         </main>
         
         <footer>
-            <a href="https://github.com/saahiyo/bypassHelper" target="_blank">GitHub</a>
-            <span class="separator">•</span>
-            <a href="https://github.com/saahiyo/bypassHelper/issues" target="_blank">Report Issue</a>
+            <div class="footer-links">
+                <a href="https://github.com/saahiyo/bypassHelper" target="_blank">GitHub</a>
+                <span class="separator">•</span>
+                <a href="https://github.com/saahiyo/bypassHelper/issues" target="_blank">Report Issue</a>
+            </div>
+            <div class="shortcuts-bar">
+                <kbd>Ctrl+Shift+B</kbd> <span class="shortcut-desc">Bypass</span>
+                <span class="shortcut-sep">|</span>
+                <kbd>Ctrl+Shift+U</kbd> <span class="shortcut-desc">Top</span>
+            </div>
         </footer>
     </div>
     <script src="popup.js"></script>

@@ -20,12 +20,23 @@
     DEBUG: debugEnabled ?? false,
     MAX_ACTIONS: 5,
     DETECTION_THRESHOLD: 2,
-    ACTION_INTERVAL: 900,
+    ACTION_INTERVAL: 5000, // safety-net fallback (MutationObserver is primary)
     EXCLUDED_HOSTS: [],
-    LOOP_LIMIT: 10, // max actions (relaxed)
+    LOOP_LIMIT: 10,
     LOOP_WINDOW: 10000, // in ms (10 seconds)
-    LOOP_PREVENTION_ENABLED: loopPreventionEnabled !== undefined ? loopPreventionEnabled : true
+    LOOP_PREVENTION_ENABLED: loopPreventionEnabled !== undefined ? loopPreventionEnabled : true,
+    OVERLAY_Z_THRESHOLD: 999,
+    MUTATION_DEBOUNCE: 300,
+    ENGAGEMENT_WINDOW: 5000,
+    CLICK_RESTORE_DELAY: 100,
+    WARMUP_DELAY: 1000,
+    CLICK_DELAY: 2000
   };
+
+  // Guard against extension context invalidation (e.g. after extension reload/update)
+  function isExtensionValid() {
+    try { return !!chrome.runtime?.id; } catch { return false; }
+  }
 
   
   // Hoisted regexes (avoid re-compilation per call)
@@ -67,7 +78,7 @@
   // Pre-compile built-in excluded host regexes once
   const excludedRegexes = CONFIG.EXCLUDED_HOSTS.map(pattern => {
     const regexSource = pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape all regex chars
+      .replace(/[.*+?^${}()|\[\]\\]/g, '\\$&') // escape all regex special chars
       .replace(/\\\*/g, '.*'); // turn escaped \* back to .*
     return new RegExp(`${regexSource}$`, 'i');
   });
@@ -110,11 +121,11 @@
           const inlineZ = d.style.zIndex;
           if (inlineZ) {
             const z = parseInt(inlineZ, 10);
-            return !isNaN(z) && z > 999;
+            return !isNaN(z) && z > CONFIG.OVERLAY_Z_THRESHOLD;
           }
           // Only call getComputedStyle if no inline z-index
           const z = parseInt(getComputedStyle(d).zIndex, 10);
-          return !isNaN(z) && z > 999;
+          return !isNaN(z) && z > CONFIG.OVERLAY_Z_THRESHOLD;
         });
     },
     knownGates() {
@@ -143,7 +154,7 @@
     }
 
     // Retain engagement only briefly after acting (avoid forcing gate forever)
-    if (actionCount > 0 && (Date.now() - lastActionAt) < 5000) {
+    if (actionCount > 0 && (Date.now() - lastActionAt) < CONFIG.ENGAGEMENT_WINDOW) {
       score += 3;
       gated = true;
     }
@@ -175,7 +186,7 @@
            document.title.includes('Just a second') || 
            document.title.includes('Checking your browser') ||
            (document.body && document.body.innerText.includes('Performing security verification')) ||
-           !!document.querySelector('.cf-turnstile, #turnstile-wrapper, #challange-form');
+           !!document.querySelector('.cf-turnstile, #turnstile-wrapper, #challenge-form');
   }
 
   /*****************************************************************
@@ -215,8 +226,8 @@
 
   // 1) FINAL STATE: submit RTG/SafeLink form directly (button may be hidden)
   function submitSafeLinkFormOnce() {
-    // 0. Warmup check: wait 3 seconds for page tokens/scripts to ready
-    if (performance.now() < 1000) {
+    // 0. Warmup check: wait for page tokens/scripts to ready
+    if (performance.now() < CONFIG.WARMUP_DELAY) {
       log('Waiting for page warmup...');
       return false;
     }
@@ -234,12 +245,17 @@
       return false;
     }
 
-    // Filter out common non-gate forms (like WordPress comments)
-    const action = form.getAttribute('action') || '';
-    if (action.includes('wp-comments-post.php') || action.includes('contact-form')) return false;
-
-    // Server-validated timer forms — submitting early causes "Bad Request"
-    if (action.includes('links/go')) return false;
+    // Filter out common non-gate forms to avoid unintended submissions
+    const action = (form.getAttribute('action') || '').toLowerCase();
+    const safeFormPatterns = [
+      'wp-comments-post.php', 'contact-form',       // WordPress / contact
+      '/login', '/signin', '/auth', '/register',     // Authentication
+      '/search', '?q=', '?query=',                   // Search
+      '/checkout', '/payment', '/billing', '/donate', // Payment
+      '/subscribe', '/newsletter', '/signup',         // Newsletter / signup
+      'links/go'                                      // Server-validated timer forms
+    ];
+    if (safeFormPatterns.some(p => action.includes(p))) return false;
 
     const hasHiddenToken = !!form.querySelector("input[type='hidden']");
     if (!hasHiddenToken) return false;
@@ -316,13 +332,14 @@
 
     // 4. Restoration timer (optional, but keeps UI stable)
     setTimeout(() => {
+      if (stopped) return;
       Object.assign(element.style, originalStyles);
-    }, 100);
+    }, CONFIG.CLICK_RESTORE_DELAY);
   }
 
   // 2) MID STATE: click helper/state-advance button ONCE
   function clickGateHelperOnce() {
-    const CLICK_DELAY = 2000; // 2 seconds delay
+    const CLICK_DELAY = CONFIG.CLICK_DELAY;
     
     // Helper for delayed clicks
     const scheduleClick = (el, desc) => {
@@ -444,6 +461,12 @@
 
   function removeOverlays() {
     document.querySelectorAll('div, section, aside').forEach(d => {
+      // Skip legitimate UI elements to avoid breaking normal websites
+      if (d.closest('nav, header, footer, [role="dialog"], [role="navigation"], [role="banner"]')) return;
+      if (d.closest('[class*="cookie"], [class*="consent"], [id*="cookie"], [id*="consent"]')) return;
+      // Skip very small elements (likely tooltips/dropdowns, not full-page overlays)
+      if (d.offsetWidth < 100 || d.offsetHeight < 100) return;
+
       const isKnownGate = GATE_PATTERNS_RE.test(d.className) || GATE_PATTERNS_RE.test(d.id);
       
       if (isKnownGate) {
@@ -456,7 +479,7 @@
       const inlineZ = d.style.zIndex;
       if (inlineZ) {
         const z = parseInt(inlineZ, 10);
-        if (!isNaN(z) && z > 999) {
+        if (!isNaN(z) && z > CONFIG.OVERLAY_Z_THRESHOLD) {
           log('Removing overlay element:', d.className, d.id);
           d.remove();
           return;
@@ -464,7 +487,7 @@
       }
 
       const z = parseInt(getComputedStyle(d).zIndex, 10);
-      if (!isNaN(z) && z > 999) {
+      if (!isNaN(z) && z > CONFIG.OVERLAY_Z_THRESHOLD) {
         log('Removing overlay element:', d.className, d.id);
         d.remove();
       }
@@ -514,6 +537,28 @@
       actionCount++;
     } catch (e) {
       actionCount++;
+    }
+
+    // Track bypass stats for popup display
+    updateStats();
+  }
+
+  function updateStats() {
+    if (!isExtensionValid()) return;
+    try {
+      chrome.storage.local.get('bypassStats', (result) => {
+        const stats = result.bypassStats || { total: 0, today: 0, date: '' };
+        const today = new Date().toISOString().slice(0, 10);
+        if (stats.date !== today) {
+          stats.today = 0;
+          stats.date = today;
+        }
+        stats.total++;
+        stats.today++;
+        chrome.storage.local.set({ bypassStats: stats });
+      });
+    } catch (e) {
+      log('Stats update failed:', e);
     }
   }
 
@@ -589,7 +634,7 @@
       mutationTimer = setTimeout(() => {
         mutationTimer = null;
         if (!stopped) execute();
-      }, 300);
+      }, CONFIG.MUTATION_DEBOUNCE);
     });
 
     observer.observe(document.documentElement, {
@@ -618,35 +663,62 @@
   }
 
   /*****************************************************************
-   * EVENT LISTENERS (Communication with shortcuts.js)
+   * EVENT LISTENERS (Communication with shortcuts.js & popup)
    *****************************************************************/
   window.addEventListener('bypassHelper:forceExecute', () => {
     log('Force bypass execution triggered via event');
     startAll('Force execute');
   });
 
+  // Listen for force-bypass command from popup
+  if (isExtensionValid()) {
+    try {
+      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (!isExtensionValid()) return;
+        if (request.action === 'forceBypass') {
+          log('Force bypass triggered from popup');
+          stopped = false;
+          actionCount = 0;
+          executing = false;
+          startAll('Force bypass from popup');
+          sendResponse({ success: true });
+        }
+        return true;
+      });
+    } catch (e) {
+      log('Failed to register message listener:', e);
+    }
+  }
+
   /*****************************************************************
-   * LIVE TOGGLES
+   * LIVE TOGGLES (wrapped for context invalidation safety)
    *****************************************************************/
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local') return;
+  if (isExtensionValid()) {
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (!isExtensionValid()) return;
+        if (area !== 'local') return;
 
-    if (Object.prototype.hasOwnProperty.call(changes, 'extensionEnabled')) {
-      const enabled = changes.extensionEnabled.newValue;
-      if (enabled === false) stopAll('Disabled via popup');
-      else startAll('Enabled via popup');
-    }
+        if (Object.prototype.hasOwnProperty.call(changes, 'extensionEnabled')) {
+          const enabled = changes.extensionEnabled.newValue;
+          if (enabled === false) stopAll('Disabled via popup');
+          else startAll('Enabled via popup');
+        }
 
-    if (Object.prototype.hasOwnProperty.call(changes, 'loopPreventionEnabled')) {
-      const enabled = changes.loopPreventionEnabled.newValue;
-      CONFIG.LOOP_PREVENTION_ENABLED = enabled !== undefined ? enabled : true;
-      log('Loop prevention updated:', CONFIG.LOOP_PREVENTION_ENABLED);
-    }
+        if (Object.prototype.hasOwnProperty.call(changes, 'loopPreventionEnabled')) {
+          const enabled = changes.loopPreventionEnabled.newValue;
+          CONFIG.LOOP_PREVENTION_ENABLED = enabled !== undefined ? enabled : true;
+          log('Loop prevention updated:', CONFIG.LOOP_PREVENTION_ENABLED);
+        }
 
-    if (Object.prototype.hasOwnProperty.call(changes, 'debugEnabled')) {
-      CONFIG.DEBUG = changes.debugEnabled.newValue ?? false;
-      log('Debug mode updated:', CONFIG.DEBUG);
+        if (Object.prototype.hasOwnProperty.call(changes, 'debugEnabled')) {
+          CONFIG.DEBUG = changes.debugEnabled.newValue ?? false;
+          log('Debug mode updated:', CONFIG.DEBUG);
+        }
+      });
+    } catch (e) {
+      log('Failed to register storage listener:', e);
     }
-  });
+  }
 
 })();

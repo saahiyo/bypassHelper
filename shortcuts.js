@@ -28,6 +28,7 @@
       });
       sendResponse({ success: true });
     }
+    return true; // keep message channel open for sendResponse
   });
 
 })();

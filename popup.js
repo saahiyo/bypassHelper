@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-excluded');
     const excludedCount = document.getElementById('excluded-count');
     const saveStatus = document.getElementById('save-status');
+    const forceBypassBtn = document.getElementById('force-bypass-btn');
+    const statToday = document.getElementById('stat-today');
+    const statTotal = document.getElementById('stat-total');
 
     let currentHostname = '';
 
@@ -28,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load excluded sites into textarea
     loadExcludedSites();
+
+    // Load bypass stats
+    loadStats();
+    // Refresh stats every 2 seconds while popup is open
+    const statsInterval = setInterval(loadStats, 2000);
 
     // Get current tab hostname and set up the site toggle button
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -66,6 +74,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // Debug logging toggle
     debugToggle.addEventListener('change', () => {
         chrome.storage.local.set({ debugEnabled: debugToggle.checked });
+    });
+
+    // Force Bypass button
+    forceBypassBtn.addEventListener('click', () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (!tabs[0]) return;
+            chrome.tabs.sendMessage(tabs[0].id, { action: 'forceBypass' }, (response) => {
+                if (chrome.runtime.lastError) {
+                    forceBypassBtn.classList.add('error');
+                    forceBypassBtn.querySelector('span:last-child').textContent = 'No page loaded';
+                    setTimeout(() => {
+                        forceBypassBtn.classList.remove('error');
+                        forceBypassBtn.querySelector('span:last-child').textContent = 'Force Bypass';
+                    }, 1500);
+                    return;
+                }
+                forceBypassBtn.classList.add('success');
+                forceBypassBtn.querySelector('span:last-child').textContent = 'Triggered!';
+                setTimeout(() => {
+                    forceBypassBtn.classList.remove('success');
+                    forceBypassBtn.querySelector('span:last-child').textContent = 'Force Bypass';
+                }, 1500);
+            });
+        });
     });
 
     // Per-site disable/enable button
@@ -172,5 +204,19 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMsg.textContent = 'Extension is disabled';
             statusMsg.className = 'status-message visible disabled';
         }
+    }
+
+    function loadStats() {
+        chrome.storage.local.get('bypassStats', (result) => {
+            const stats = result.bypassStats || { total: 0, today: 0, date: '' };
+            const today = new Date().toISOString().slice(0, 10);
+            // Reset today count if date changed
+            if (stats.date !== today) {
+                statToday.textContent = '0';
+            } else {
+                statToday.textContent = stats.today;
+            }
+            statTotal.textContent = stats.total;
+        });
     }
 });

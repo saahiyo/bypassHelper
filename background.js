@@ -37,8 +37,32 @@ async function loadExcludedHosts() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   loadExcludedHosts();
+
+  // Set explicit defaults on first install so state is deterministic
+  if (details.reason === 'install') {
+    chrome.storage.local.set({
+      extensionEnabled: true,
+      loopPreventionEnabled: true,
+      debugEnabled: false,
+      bypassStats: { total: 0, today: 0, date: '' }
+    });
+  }
+
+  // Create right-click context menu
+  chrome.contextMenus.create({
+    id: 'bypassHelper-force',
+    title: 'Bypass this page',
+    contexts: ['page']
+  });
+});
+
+// Handle context menu clicks
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'bypassHelper-force' && tab?.id) {
+    chrome.tabs.sendMessage(tab.id, { action: 'forceBypass' }).catch(() => {});
+  }
 });
 
 // Also reload on service worker startup (in case storage was cleared)
