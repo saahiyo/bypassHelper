@@ -8,6 +8,24 @@ const COMMAND_MAP = {
   'go-to-top': 'goToTop'
 };
 
+/*****************************************************************
+ * AD-BLOCK RULESET SYNC
+ * The static declarativeNetRequest ruleset blocks ad networks even
+ * when the extension is toggled OFF. Enable/disable it in lockstep
+ * with extensionEnabled so "disabled" means zero network activity.
+ *****************************************************************/
+const ADBLOCK_RULESET_ID = 'adblock_rules';
+
+function syncAdblockRuleset(enabled) {
+  const on = enabled !== false; // default ON when undefined
+  try {
+    chrome.declarativeNetRequest.updateEnabledRulesets({
+      enableRulesetIds: on ? [ADBLOCK_RULESET_ID] : [],
+      disableRulesetIds: on ? [] : [ADBLOCK_RULESET_ID]
+    }).catch(() => {});
+  } catch (e) { /* API unavailable (e.g. Firefox) */ }
+}
+
 chrome.commands.onCommand.addListener((command) => {
   const action = COMMAND_MAP[command];
   if (!action) return;
@@ -39,6 +57,7 @@ async function loadExcludedHosts() {
 
 chrome.runtime.onInstalled.addListener((details) => {
   loadExcludedHosts();
+  chrome.storage.local.get('extensionEnabled', (r) => syncAdblockRuleset(r.extensionEnabled));
 
   // Set explicit defaults on first install so state is deterministic
   if (details.reason === 'install') {
@@ -70,6 +89,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 // Also reload on service worker startup (in case storage was cleared)
 loadExcludedHosts();
+chrome.storage.local.get('extensionEnabled', (r) => syncAdblockRuleset(r.extensionEnabled));
 
 /*****************************************************************
  * BADGE — visual feedback for extension state
@@ -93,5 +113,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (Object.prototype.hasOwnProperty.call(changes, 'extensionEnabled')) {
     updateBadge(changes.extensionEnabled.newValue);
+    syncAdblockRuleset(changes.extensionEnabled.newValue);
   }
 });

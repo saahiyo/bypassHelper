@@ -11,9 +11,12 @@
   ]);
   if (extensionEnabled === false) {
     document.documentElement.dataset.bypassHelperEnabled = 'false';
-    console.log('[bypassHelper] Extension disabled via popup');
+    if (debugEnabled) console.log('[bypassHelper] Extension disabled via popup');
     return;
   }
+  // Mirror the debug flag to a data-attr so the MAIN-world timerSpeedup (which
+  // cannot read chrome.storage) can gate its own logging. Set before 'enabled'.
+  document.documentElement.dataset.bypassHelperDebug = String(debugEnabled ?? false);
   document.documentElement.dataset.bypassHelperEnabled = 'true';
 
   const CONFIG = {
@@ -729,6 +732,7 @@
 
         if (Object.prototype.hasOwnProperty.call(changes, 'debugEnabled')) {
           CONFIG.DEBUG = changes.debugEnabled.newValue ?? false;
+          document.documentElement.dataset.bypassHelperDebug = String(CONFIG.DEBUG);
           log('Debug mode updated:', CONFIG.DEBUG);
         }
       });

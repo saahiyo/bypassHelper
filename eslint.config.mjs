@@ -2,8 +2,16 @@ import globals from 'globals';
 
 export default [
   {
+    files: ['test/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'commonjs',
+      globals: { ...globals.node }
+    }
+  },
+  {
     files: ['**/*.js'],
-    ignores: ['node_modules/**', 'rules/**', '_metadata/**'],
+    ignores: ['test/**', 'node_modules/**', 'rules/**', '_metadata/**'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'script',

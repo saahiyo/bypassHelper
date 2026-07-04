@@ -1,7 +1,11 @@
 (() => {
   'use strict';
 
-  const log = (...a) => console.log('[bypassHelper:shortcuts]', ...a);
+  const log = (...a) => {
+    if (document.documentElement.dataset.bypassHelperDebug === 'true') {
+      console.log('[bypassHelper:shortcuts]', ...a);
+    }
+  };
 
   /*****************************************************************
    * KEYBOARD SHORTCUT HANDLER

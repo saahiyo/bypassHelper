@@ -37,11 +37,21 @@
         return currentHost === host || currentHost.endsWith('.' + host);
     });
 
+    // Debug logging gate. MAIN world can't read chrome.storage, so content.js
+    // mirrors the flag onto <html data-bypass-helper-debug>. Silent unless "true".
+    const dbg = (...a) => {
+        try {
+            if (document.documentElement.dataset.bypassHelperDebug === 'true') {
+                console.log('[bypassHelper]', ...a);
+            }
+        } catch { /* ignore */ }
+    };
+
     // 2. Aggressive EARLY EXIT
     // If it's a security challenge or excluded host, we stop completely before overriding anything.
     if (isExcluded || isSecurityChallenge()) {
         if (isSecurityChallenge()) {
-            console.log('[bypassHelper] Security challenge detected - Speedup suspended.');
+            dbg('Security challenge detected - Speedup suspended.');
         }
         return;
     }
@@ -49,6 +59,7 @@
     // 3. Aggressive timing logic
     const origST = window.setTimeout;
     const origSI = window.setInterval;
+    const origRAF = window.requestAnimationFrame;
     const origNow = Date.now;
     const origPerf = window.performance;
     const origPerfNow = origPerf ? origPerf.now.bind(origPerf) : null;
@@ -75,7 +86,6 @@
     };
 
     // Override requestAnimationFrame to run at max speed
-    const origRAF = window.requestAnimationFrame;
     window.requestAnimationFrame = function(callback) {
         if (isEnabled()) {
             // Run immediately via setTimeout instead of waiting for next paint
@@ -101,10 +111,51 @@
                 configurable: true,
                 writable: true
             });
-        } catch (e) {
+        } catch {
             // Silently fail if performance.now is immutable
         }
     }
 
-    console.log('[bypassHelper] Aggressive timer speedup active');
+    // Fully remove every override so a disabled extension leaves zero footprint.
+    let restored = false;
+    const uninstall = () => {
+        if (restored) return;
+        restored = true;
+        window.setTimeout = origST;
+        window.setInterval = origSI;
+        window.requestAnimationFrame = origRAF;
+        Date.now = origNow;
+        if (origPerf && origPerfNow) {
+            try {
+                Object.defineProperty(origPerf, 'now', {
+                    value: origPerfNow, configurable: true, writable: true
+                });
+            } catch { /* immutable */ }
+        }
+    };
+
+    // content.js (isolated world) sets <html data-bypass-helper-enabled> asynchronously
+    // after reading storage. Watch for the definitive state: if disabled, self-uninstall
+    // so the page runs on native timers with no residual patching; if enabled, keep the
+    // overrides and stop observing.
+    const applyState = (state) => {
+        if (state === 'false') { uninstall(); return true; }
+        if (state === 'true') { dbg('Aggressive timer speedup active'); return true; }
+        return false;
+    };
+    try {
+        const stateObserver = new MutationObserver(() => {
+            if (applyState(document.documentElement.dataset.bypassHelperEnabled)) {
+                stateObserver.disconnect();
+            }
+        });
+        stateObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['data-bypass-helper-enabled']
+        });
+        // Handle the case where the state was already set before we started observing.
+        if (applyState(document.documentElement.dataset.bypassHelperEnabled)) {
+            stateObserver.disconnect();
+        }
+    } catch { /* ignore */ }
 })();
