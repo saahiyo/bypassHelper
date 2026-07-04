@@ -1,0 +1,14 @@
+{
+  "name": "bypasshelper",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Browser extension that bypasses link-shortener interstitials, blocks ad networks, and removes on-page overlays.",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0"
+  }
+}

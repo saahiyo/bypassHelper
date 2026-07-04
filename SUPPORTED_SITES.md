@@ -161,8 +161,8 @@ The extension performs these actions in priority order:
    - Toggle debug logging on/off
 
 5. **Keyboard Shortcuts**
-   - `Ctrl+Shift+B` — Scroll to bottom + force bypass execution
-   - `Ctrl+Shift+T` — Scroll to top of page
+   - `Ctrl+Down` (`Cmd+Down` on Mac) — Scroll to bottom + force bypass execution
+   - `Ctrl+Up` (`Cmd+Up` on Mac) — Scroll to top of page
 
 ---
 

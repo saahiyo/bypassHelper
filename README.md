@@ -19,7 +19,7 @@ To handle dynamic websites, the extension uses a `MutationObserver` to react to 
 - 🧹 Overlay and popup removal
 - 🔄 Loop prevention to avoid infinite action cycles
 - 🐛 Toggleable debug logging
-- ⌨️ Keyboard shortcuts (`Ctrl+Shift+B` / `Ctrl+Shift+T`)
+- ⌨️ Keyboard shortcuts (`Ctrl/Cmd+Down` = scroll to bottom + force bypass, `Ctrl/Cmd+Up` = scroll to top)
 - 🟢 Badge icon showing ON/OFF state
 
 ## Installation

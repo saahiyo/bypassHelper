@@ -50,11 +50,14 @@ chrome.runtime.onInstalled.addListener((details) => {
     });
   }
 
-  // Create right-click context menu
-  chrome.contextMenus.create({
-    id: 'bypassHelper-force',
-    title: 'Bypass this page',
-    contexts: ['page']
+  // Create right-click context menu.
+  // removeAll() first so re-running on update/reload doesn't throw a duplicate-id error.
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: 'bypassHelper-force',
+      title: 'Bypass this page',
+      contexts: ['page']
+    });
   });
 });
 
