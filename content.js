@@ -221,6 +221,7 @@
     const isOrganicTrap = wpsafeTime || (window.location.pathname.includes('now.php') && window.location.search.includes('link='));
     if (isOrganicTrap && !document.documentElement.dataset.organicBypassed) {
       document.documentElement.dataset.organicBypassed = 'true';
+      sessionStorage.setItem('bypassHelper_Organic', 'true');
       log('Detected organic Google redirect trap on:', window.location.href);
       // Directly fetch the site's homepage to grab the first post, avoiding Google CAPTCHA completely
       fetch(window.location.origin + '/')
@@ -241,12 +242,13 @@
       return true;
     }
 
-    // Case 2: Landing on blog homepage with active safelink/link cookie
+    // Case 2: Landing on blog homepage explicitly forwarded from an organic trap
     if (window.location.pathname === '/' || window.location.pathname === '') {
-      if (document.cookie.includes('link=') || document.cookie.includes('safelink')) {
+      if (sessionStorage.getItem('bypassHelper_Organic') === 'true') {
         const firstArticle = document.querySelector('article a[href*="/20"], .post a[href*="/20"], h2.cm-entry-title a, h2.entry-title a');
         if (firstArticle && firstArticle.href && !firstArticle.dataset.visited) {
           firstArticle.dataset.visited = 'true';
+          sessionStorage.removeItem('bypassHelper_Organic');
           log('On blog landing page with active safelink cookie, navigating to first post:', firstArticle.href);
           window.location.href = firstArticle.href;
           return true;
@@ -472,12 +474,6 @@
     if (anchor) {
       if (anchor.getAttribute('target') === '_blank') {
         anchor.removeAttribute('target');
-      }
-      // If anchor has a hijacking onclick handler (e.g. specialActionHandler opening ads), neutralize it
-      const onclickAttr = anchor.getAttribute('onclick') || '';
-      if (/specialActionHandler|window\.open/i.test(onclickAttr)) {
-        anchor.removeAttribute('onclick');
-        anchor.onclick = null;
       }
     }
 
