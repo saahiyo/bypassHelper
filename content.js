@@ -323,24 +323,29 @@
     return false;
   }
 
-  // Intercept user clicks in the capture phase to protect against ad-hijacking scripts (e.g. wistfulseverely.com)
+  // Protect final external destination links against ad-hijacking scripts (e.g. wistfulseverely.com)
   document.addEventListener('click', (e) => {
     const a = e.target.closest('a[href]');
     if (!a) return;
     const rawHref = a.getAttribute('href') || '';
-    if (rawHref && !rawHref.startsWith('javascript:') && rawHref !== '#') {
-      const isGateOrDest = a.id === 'gt-link' || a.id === 'get-link' || a.id === 'link1s' || 
-        a.id === 'btn7' || a.id === 'btn1' || a.id === 'cross-snp2' ||
-        a.classList.contains('get-link') || /get\s*link|continue|verify/i.test(a.textContent || '');
-      if (isGateOrDest) {
-        // Prevent ad hijacking listeners from hijacking the window to an ad URL
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        log('Intercepted user click on gate link, cleanly navigating to:', a.href);
-        a.dataset.redirected = 'true';
-        recordAction();
-        window.location.href = a.href;
-      }
+    if (!rawHref || rawHref.startsWith('javascript:') || rawHref === '#' || rawHref.startsWith('/')) return;
+
+    // Never intercept elements that have custom JS onclick handlers
+    if (a.hasAttribute('onclick') || a.querySelector('[onclick]')) return;
+
+    let isExternal = false;
+    try {
+      isExternal = new URL(a.href, window.location.href).hostname !== window.location.hostname;
+    } catch { return; }
+
+    // Only protect recognized external destination links (e.g. #link1s, #gt-link, #get-link pointing to destination)
+    if (isExternal && (a.id === 'link1s' || a.id === 'gt-link' || a.id === 'get-link' || a.classList.contains('get-link'))) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      log('Intercepted click on final external destination link, cleanly navigating to:', a.href);
+      a.dataset.redirected = 'true';
+      recordAction();
+      window.location.href = a.href;
     }
   }, true);
 
