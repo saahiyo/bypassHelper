@@ -181,11 +181,31 @@
   }
 
   function isSecurityChallenge() {
-    return document.title.includes('Just a moment') || 
-           document.title.includes('Just a second') || 
-           document.title.includes('Checking your browser') ||
-           (document.body && document.body.innerText.includes('Performing security verification')) ||
-           !!document.querySelector('.cf-turnstile, #turnstile-wrapper, #challenge-form');
+    if (
+      document.title.includes('Just a moment') || 
+      document.title.includes('Just a second') || 
+      document.title.includes('Checking your browser')
+    ) {
+      return true;
+    }
+
+    if (document.querySelector('.cf-browser-verification, .cf-turnstile, #turnstile-wrapper, #challenge-form')) {
+      return true;
+    }
+
+    const scripts = document.scripts;
+    for (let i = 0; i < scripts.length; i++) {
+      const src = scripts[i].src;
+      if (src && (src.includes('cdn-cgi/challenge-platform/') || src.includes('recaptcha/api.js') || src.includes('hcaptcha.com/1/api.js'))) {
+        return true;
+      }
+    }
+
+    return !!(
+      document.body &&
+      (document.body.innerText.includes('Performing security verification') ||
+       document.body.innerText.includes('Verify you are human'))
+    );
   }
 
   /*****************************************************************
