@@ -530,7 +530,7 @@
         return false;
       }
       return true;
-    } catch (e) {
+    } catch {
       return true;
     }
   }
@@ -550,7 +550,7 @@
       
       sessionStorage.setItem('bypassHelper_Loop', JSON.stringify(data));
       actionCount++;
-    } catch (e) {
+    } catch {
       actionCount++;
     }
 

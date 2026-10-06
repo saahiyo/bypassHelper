@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     // Refresh stats every 2 seconds while popup is open
     const statsInterval = setInterval(loadStats, 2000);
+    window.addEventListener('unload', () => clearInterval(statsInterval));
 
     // Get current tab hostname and set up the site toggle button
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -52,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentHostname = url.hostname;
             siteHostnameEl.textContent = currentHostname;
             updateSiteButton();
-        } catch (e) {
+        } catch {
             siteToggleBtn.style.display = 'none';
         }
     });

@@ -23,7 +23,7 @@ function syncAdblockRuleset(enabled) {
       enableRulesetIds: on ? [ADBLOCK_RULESET_ID] : [],
       disableRulesetIds: on ? [] : [ADBLOCK_RULESET_ID]
     }).catch(() => {});
-  } catch (e) { /* API unavailable (e.g. Firefox) */ }
+  } catch { /* API unavailable (e.g. Firefox) */ }
 }
 
 chrome.commands.onCommand.addListener((command) => {
