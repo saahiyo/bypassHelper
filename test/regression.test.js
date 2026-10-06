@@ -89,3 +89,20 @@ test('rules/adblock.json is valid JSON with unique rule ids', () => {
   const ids = rules.map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length, 'duplicate declarativeNetRequest rule ids');
 });
+
+test('timerSpeedup.js EXCLUDED_HOSTS matches major platforms in excluded_hosts.txt (drift guard)', () => {
+  const excludedHostsTxt = read('excluded_hosts.txt');
+  const majorSection = excludedHostsTxt.split(/#\s*Major platforms[^\r\n]*/i)[1] || '';
+  const expectedHosts = majorSection
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+
+  const timerSrc = read('timerSpeedup.js');
+  const match = timerSrc.match(/const EXCLUDED_HOSTS = \[\s*([\s\S]*?)\s*\];/);
+  assert.ok(match, 'EXCLUDED_HOSTS array not found in timerSpeedup.js');
+  const timerHosts = [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+  assert.deepEqual(timerHosts.sort(), expectedHosts.sort(), 'timerSpeedup.js and excluded_hosts.txt have drifted');
+});
+
