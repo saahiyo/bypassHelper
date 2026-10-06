@@ -75,6 +75,15 @@
 
     // Accelerate only long countdown timeouts (>= 1000ms), leave small/network/debounce timeouts intact
     window.setTimeout = function(fn, delay, ...args) {
+        if (typeof fn === 'function') {
+            try {
+                const fnStr = fn.toString();
+                if (/wistfulseverely|alwingulla|highcpmgate|adsterra/i.test(fnStr)) {
+                    dbg('Blocked ad redirect timer');
+                    return -1;
+                }
+            } catch { /* ignore */ }
+        }
         let d = delay;
         if (isEnabled() && typeof delay === 'number' && delay >= 1000) {
             d = Math.max(200, Math.floor(delay / 4));

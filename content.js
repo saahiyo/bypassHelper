@@ -245,13 +245,24 @@
       }
     }
 
-    // Find the first valid, unlocked, visible, non-javascript destination link
+    // Find the first valid, unlocked, non-javascript destination link
     const validLink = candidateLinks.find(link => {
       if (!link || !link.href || link.dataset.redirected) return false;
       const rawHref = link.getAttribute('href') || '';
       if (!rawHref || rawHref === '#' || rawHref.startsWith('javascript:')) return false;
-      if (link.classList.contains('disabled') || link.hasAttribute('disabled')) return false;
-      if (link.style.display === 'none') return false;
+
+      // If the link points to an external destination (e.g. t.me or different domain than the shortener),
+      // it is the resolved destination link — even if visually hidden or marked disabled by a cosmetic timer!
+      let isExternal = false;
+      try {
+        isExternal = new URL(link.href, window.location.href).hostname !== window.location.hostname;
+      } catch { /* ignore */ }
+
+      if (!isExternal) {
+        if (link.classList.contains('disabled') || link.hasAttribute('disabled')) return false;
+        if (link.style.display === 'none') return false;
+      }
+
       const dest = link.href;
       if (dest === window.location.href || dest === window.location.href + '#') return false;
       return true;
@@ -277,7 +288,7 @@
       const isGateOrDest = a.id === 'gt-link' || a.id === 'get-link' || a.id === 'link1s' || 
         a.id === 'btn7' || a.id === 'btn1' || a.id === 'cross-snp2' ||
         a.classList.contains('get-link') || /get\s*link|continue|verify/i.test(a.textContent || '');
-      if (isGateOrDest && !a.classList.contains('disabled') && a.style.display !== 'none') {
+      if (isGateOrDest) {
         // Prevent ad hijacking listeners from hijacking the window to an ad URL
         e.stopImmediatePropagation();
         e.preventDefault();
