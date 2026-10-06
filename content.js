@@ -21,12 +21,12 @@
 
   const CONFIG = {
     DEBUG: debugEnabled ?? false,
-    MAX_ACTIONS: 10,
+    MAX_ACTIONS: 25,
     DETECTION_THRESHOLD: 2,
-    ACTION_INTERVAL: 5000, // safety-net fallback (MutationObserver is primary)
+    ACTION_INTERVAL: 2000, // safety-net fallback (MutationObserver is primary)
     EXCLUDED_HOSTS: [],
-    LOOP_LIMIT: 10,
-    LOOP_WINDOW: 10000, // in ms (10 seconds)
+    LOOP_LIMIT: 25,
+    LOOP_WINDOW: 15000, // in ms (15 seconds)
     LOOP_PREVENTION_ENABLED: loopPreventionEnabled !== undefined ? loopPreventionEnabled : true,
     OVERLAY_Z_THRESHOLD: 999,
     MUTATION_DEBOUNCE: 300,
@@ -104,7 +104,7 @@
   const detectors = {
     countdown() {
       return [...document.querySelectorAll('p, span, div, h1, h2, h3, h4, h5, h6, li, td, label, strong, em, b, i, a, button')]
-        .some(e => /\b\d+\s*(sec|seconds|wait)\b/i.test(e.textContent));
+        .some(e => /\d+\s*(sec|seconds|second|wait)/i.test(e.textContent) || (e.id && /time|count/i.test(e.id) && /\d+/.test(e.textContent)));
     },
     disabledButtons() {
       return document.querySelectorAll('button:disabled').length > 0;
@@ -522,26 +522,42 @@
     // Look for specific gate buttons by ID or class (find the first visible/uncompleted one)
     const gateIdSelectors = '#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #rtg-snp21, button.bt-success, button.btn-success, .btn.bt-success, button.button, #getlink, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id*="snp"], [id*="countdown" i], [class*="countdown-btn" i]';
     const idBtnCandidates = Array.from(document.querySelectorAll(gateIdSelectors));
+    const multiTapIds = ['getlink', 'getlink1', 'btn6', 'btn7', 'btn1', 'startCountdownBtn', 'cross-snp2', 'get-link', 'rtg-snp2', 'rtg-snp21'];
+
     let idBtn = idBtnCandidates.find(el => {
       if (el.dataset.finalClicked === 'true') return false;
       const isHidden = el.style.display === 'none' || (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0);
       if (isHidden) return false;
-      // If already clicked, only consider it if it's a multiTap element whose text or state changed
+
+      const btnId = el.id || '';
+      const isMultiTap = multiTapIds.includes(btnId) || btnId.startsWith('rtg-snp') || btnId.includes('snp');
+
+      // If already clicked:
       if (el.dataset.clicked === 'true') {
+        if (!isMultiTap) return false;
         const text = (el.textContent || '').toLowerCase();
-        if (el.dataset.lastText === text) return false;
+
+        // For getlink / getlink1: allow clicking again if downstream container is still hidden
+        if (btnId === 'getlink1' || btnId === 'getlink') {
+          const nextContainer = document.querySelector('#rtg-btn1, #rtg-snp21, #rtg-snp2, form#rtg');
+          const isNextVisible = nextContainer && window.getComputedStyle(nextContainer).display !== 'none';
+          if (isNextVisible) return false;
+        } else if (el.dataset.lastText === text) {
+          return false;
+        }
       }
       return true;
     });
 
-    // Only consider hidden candidates as fallback if NO countdown is in progress
-    if (!idBtn && !detectors.countdown()) {
-      idBtn = idBtnCandidates.find(el => el.dataset.finalClicked !== 'true' && el.dataset.clicked !== 'true');
-    }
-    
     // Also look for buttons by class (e.g. "GO TO LINK - CLICK OPEN" with class .bt-success)
     if (!idBtn) {
-      idBtn = document.querySelector('button.bt-success, button.btn-success, .btn.bt-success, button.button');
+      const classBtn = document.querySelector('button.bt-success, button.btn-success, .btn.bt-success, button.button');
+      if (classBtn) {
+        const isHidden = classBtn.style.display === 'none' || (classBtn.offsetParent === null && classBtn.offsetWidth === 0 && classBtn.offsetHeight === 0);
+        if (!isHidden && classBtn.dataset.finalClicked !== 'true') {
+          idBtn = classBtn;
+        }
+      }
     }
     
     if (idBtn) {
@@ -560,7 +576,6 @@
         }
       }
 
-      const multiTapIds = ['getlink', 'getlink1', 'btn6', 'btn7', 'btn1', 'startCountdownBtn', 'cross-snp2', 'get-link', 'rtg-snp2', 'rtg-snp21'];
       const btnId = idBtn.id || '';
       const isMultiTap = multiTapIds.includes(btnId) || btnId.startsWith('rtg-snp') || btnId.includes('snp');
       const btnText = (idBtn.textContent || '').toLowerCase();
