@@ -350,9 +350,29 @@
       return false;
     }
 
-    const form = document.querySelector(
-      "form#rtg, form#rtgForm, form[name='rtg'], form[id^='rtg'], form[action][method='post']"
-    );
+    // First priority: specifically look for RTG/SafeLink forms
+    let form = document.querySelector("form#rtg, form#rtgForm, form[name='rtg'], form[id^='rtg']");
+
+    const safeFormPatterns = [
+      'wp-comments-post.php', 'contact-form',       // WordPress / contact
+      '/login', '/signin', '/auth', '/register',     // Authentication
+      '/search', '?q=', '?query=',                   // Search
+      '/checkout', '/payment', '/billing', '/donate', // Payment
+      '/subscribe', '/newsletter', '/signup',         // Newsletter / signup
+      'links/go', 'go-link'                           // Server-validated timer forms
+    ];
+
+    // Fallback: look for other POST forms with hidden tokens, excluding known safe forms
+    if (!form) {
+      const allForms = Array.from(document.querySelectorAll("form[action][method='post']"));
+      form = allForms.find(f => {
+        const action = (f.getAttribute('action') || f.action || '').toLowerCase();
+        const formId = (f.id || '').toLowerCase();
+        if (formId.includes('go-link') || safeFormPatterns.some(p => action.includes(p))) return false;
+        return !!f.querySelector("input[type='hidden']");
+      });
+    }
+
     if (!form) return false;
 
     // Fallback: If we clicked the submit button on a previous tick but are still on this page,
@@ -378,19 +398,6 @@
       log('Form found but inside hidden container, skipping:', hiddenParent.id || 'unknown');
       return false;
     }
-
-    // Filter out common non-gate forms to avoid unintended submissions
-    const action = (form.getAttribute('action') || form.action || '').toLowerCase();
-    const formId = (form.id || '').toLowerCase();
-    const safeFormPatterns = [
-      'wp-comments-post.php', 'contact-form',       // WordPress / contact
-      '/login', '/signin', '/auth', '/register',     // Authentication
-      '/search', '?q=', '?query=',                   // Search
-      '/checkout', '/payment', '/billing', '/donate', // Payment
-      '/subscribe', '/newsletter', '/signup',         // Newsletter / signup
-      'links/go', 'go-link'                           // Server-validated timer forms
-    ];
-    if (formId.includes('go-link') || safeFormPatterns.some(p => action.includes(p))) return false;
 
     const hasHiddenToken = !!form.querySelector("input[type='hidden']");
     if (!hasHiddenToken) return false;
@@ -502,19 +509,6 @@
 
   // 2) MID STATE: click helper/state-advance button ONCE
   function clickGateHelperOnce() {
-    const CLICK_DELAY = CONFIG.CLICK_DELAY;
-    
-    // Helper for delayed clicks
-    const scheduleClick = (el, desc) => {
-      log(`Scheduling click for ${desc} in ${CLICK_DELAY}ms`);
-      el.dataset.clicked = 'true';
-      setTimeout(() => {
-        if (stopped) return;
-        forceClick(el);
-        recordAction();
-      }, CLICK_DELAY);
-    };
-
     const altBtn = document.querySelector('#alt');
     
     if (altBtn && !altBtn.dataset.clicked) {
@@ -525,8 +519,8 @@
       return true;
     }
 
-    // Look for specific gate buttons by ID (find the first visible/uncompleted one)
-    const gateIdSelectors = '#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #rtg-snp21, #bt-success, #getlink, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id*="snp"], [id*="countdown" i], [class*="countdown-btn" i]';
+    // Look for specific gate buttons by ID or class (find the first visible/uncompleted one)
+    const gateIdSelectors = '#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #rtg-snp21, button.bt-success, button.btn-success, .btn.bt-success, button.button, #getlink, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id*="snp"], [id*="countdown" i], [class*="countdown-btn" i]';
     const idBtnCandidates = Array.from(document.querySelectorAll(gateIdSelectors));
     let idBtn = idBtnCandidates.find(el => {
       if (el.dataset.finalClicked === 'true') return false;
@@ -547,7 +541,7 @@
     
     // Also look for buttons by class (e.g. "GO TO LINK - CLICK OPEN" with class .bt-success)
     if (!idBtn) {
-      idBtn = document.querySelector('button.bt-success, button.btn-success');
+      idBtn = document.querySelector('button.bt-success, button.btn-success, .btn.bt-success, button.button');
     }
     
     if (idBtn) {
@@ -606,7 +600,8 @@
         // avoid nav/footer (allow main/article as content often lives there)
         if (el.closest('nav,header,footer,h1,h2,h3,h4,h5,h6')) return false;
         if (el.tagName === 'A' && el.getAttribute('href')?.startsWith('#')) return false;
-        if ((el.textContent || '').length > 20) return false;
+        const text = (el.textContent || '').trim();
+        if (text.length > 60) return false;
 
         return true;
       });
@@ -624,8 +619,11 @@
 
     if (!helper) return false;
 
-    // Apply delay for these keyword-based buttons
-    scheduleClick(helper, helper.textContent.trim().substring(0, 15));
+    // Click keyword-based gate button directly
+    log('Clicking keyword-matched button:', helper.textContent.trim().substring(0, 30));
+    helper.dataset.clicked = 'true';
+    forceClick(helper);
+    recordAction();
     return true;
   }
 
