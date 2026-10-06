@@ -78,15 +78,11 @@
     return;
   }
 
-  // Pre-compile built-in excluded host regexes once
-  const excludedRegexes = CONFIG.EXCLUDED_HOSTS.map(pattern => {
-    const regexSource = pattern
-      .replace(/[.*+?^${}()|\[\]\\]/g, '\\$&') // escape all regex special chars
-      .replace(/\\\*/g, '.*'); // turn escaped \* back to .*
-    return new RegExp(`${regexSource}$`, 'i');
+  const currentHost = location.hostname.toLowerCase();
+  const isExcluded = CONFIG.EXCLUDED_HOSTS.some(host => {
+    const h = host.toLowerCase();
+    return currentHost === h || currentHost.endsWith('.' + h);
   });
-
-  const isExcluded = excludedRegexes.some(re => re.test(location.hostname));
 
   if (isExcluded) {
     document.documentElement.dataset.bypassHelperEnabled = 'false';
