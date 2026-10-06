@@ -137,7 +137,7 @@
           // Relaxed visibility check for known IDs or if it's high priority
           const isKnownId = el.id === 'btn6' || el.id === 'btn7' || el.id === 'btn1' || 
             el.id === 'startCountdownBtn' || el.id === 'cross-snp2' || el.id === 'get-link' || 
-            el.id === 'link1s' || el.id === 'rtg-snp2' || el.id === 'alt';
+            el.id === 'link1s' || el.id === 'rtg-snp2' || el.id === 'getlink' || el.id === 'getlink1' || el.id === 'alt';
           return (el.offsetParent || isKnownId) && KEYWORDS_RE.test(el.textContent);
         });
     }
@@ -167,7 +167,7 @@
     }
 
     // Force gate if specific IDs exist (even if hidden)
-    if (document.querySelector('#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #alt')) {
+    if (document.querySelector('#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #getlink, #getlink1, #alt')) {
       score += 2;
       gated = true;
     }
@@ -213,6 +213,48 @@
   /*****************************************************************
    * STATE-AWARE ACTIONS
    *****************************************************************/
+
+  // -1) SUPREME PRIORITY: Bypass organic Google Search redirect traps (e.g. now.php with #wpsafe-time)
+  function bypassOrganicSearchRedirect() {
+    // Case 1: On now.php / wpsafe countdown page that attempts organic Google search redirection
+    const wpsafeTime = document.getElementById('wpsafe-time');
+    const isOrganicTrap = wpsafeTime || (window.location.pathname.includes('now.php') && window.location.search.includes('link='));
+    if (isOrganicTrap && !document.documentElement.dataset.organicBypassed) {
+      document.documentElement.dataset.organicBypassed = 'true';
+      log('Detected organic Google redirect trap on:', window.location.href);
+      // Directly fetch the site's homepage to grab the first post, avoiding Google CAPTCHA completely
+      fetch(window.location.origin + '/')
+        .then(res => res.text())
+        .then(html => {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const firstArticle = doc.querySelector('article a[href*="/20"], .post a[href*="/20"], h2.cm-entry-title a, h2.entry-title a, h2 a[href]');
+          if (firstArticle && firstArticle.href) {
+            log('Directly navigating to organic target article:', firstArticle.href);
+            window.location.href = firstArticle.href;
+          } else {
+            window.location.href = window.location.origin + '/';
+          }
+        })
+        .catch(() => {
+          window.location.href = window.location.origin + '/';
+        });
+      return true;
+    }
+
+    // Case 2: Landing on blog homepage with active safelink/link cookie
+    if (window.location.pathname === '/' || window.location.pathname === '') {
+      if (document.cookie.includes('link=') || document.cookie.includes('safelink')) {
+        const firstArticle = document.querySelector('article a[href*="/20"], .post a[href*="/20"], h2.cm-entry-title a, h2.entry-title a');
+        if (firstArticle && firstArticle.href && !firstArticle.dataset.visited) {
+          firstArticle.dataset.visited = 'true';
+          log('On blog landing page with active safelink cookie, navigating to first post:', firstArticle.href);
+          window.location.href = firstArticle.href;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
 
   // 0) HIGHEST PRIORITY: auto-redirect "Get Link" anchors to their href
   function autoRedirectGetLink() {
@@ -484,7 +526,7 @@
     }
 
     // Look for specific gate buttons by ID (find the first visible/uncompleted one)
-    const gateIdSelectors = '#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #rtg-snp21, #bt-success, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id*="snp"], [id*="countdown" i], [class*="countdown-btn" i]';
+    const gateIdSelectors = '#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #rtg-snp21, #bt-success, #getlink, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id*="snp"], [id*="countdown" i], [class*="countdown-btn" i]';
     const idBtnCandidates = Array.from(document.querySelectorAll(gateIdSelectors));
     let idBtn = idBtnCandidates.find(el => {
       if (el.dataset.finalClicked === 'true') return false;
@@ -524,7 +566,7 @@
         }
       }
 
-      const multiTapIds = ['getlink1', 'btn6', 'btn7', 'btn1', 'startCountdownBtn', 'cross-snp2', 'get-link', 'rtg-snp2', 'rtg-snp21'];
+      const multiTapIds = ['getlink', 'getlink1', 'btn6', 'btn7', 'btn1', 'startCountdownBtn', 'cross-snp2', 'get-link', 'rtg-snp2', 'rtg-snp21'];
       const btnId = idBtn.id || '';
       const isMultiTap = multiTapIds.includes(btnId) || btnId.startsWith('rtg-snp') || btnId.includes('snp');
       const btnText = (idBtn.textContent || '').toLowerCase();
@@ -726,6 +768,12 @@
     try {
       if (!checkLoop()) {
         stopAll('Execution paused to prevent infinite loop');
+        return;
+      }
+
+      // Supreme priority: bypass organic Google redirect traps without triggering CAPTCHAs
+      if (bypassOrganicSearchRedirect()) {
+        stopAll('Bypassing organic Google redirect trap');
         return;
       }
 
