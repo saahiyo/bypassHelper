@@ -218,8 +218,8 @@
   function autoRedirectGetLink() {
     // Match by id="get-link" or class containing "get-link" or direct link id
     const selectors = [
-      'a#gtelinkbtn[href]',
       'a#gt-link[href]',
+      'a#gtelinkbtn[href]',
       'a#get-link[href]',
       'a.get-link[href]',
       'a[id*="get-link"][href]',
@@ -227,49 +227,67 @@
       'a#link1s[href]',
       'a[id^="link1"][href]'
     ];
-    let link = document.querySelector(selectors.join(','));
+    const candidateLinks = Array.from(document.querySelectorAll(selectors.join(',')));
 
     // Also check if an anchor wraps a "Get Link" / unlock button (e.g. <a id="link1s"><button id="get-link">Get Link</button></a>)
-    if (!link) {
-      const getLinkBtn = document.querySelector('#get-link, button.get-link, button.btn-unlock, [id*="get-link" i]');
-      if (getLinkBtn) {
-        link = getLinkBtn.closest('a[href]') || getLinkBtn.querySelector('a[href]');
-      }
+    const getLinkBtns = document.querySelectorAll('#get-link, #gt-link, button.get-link, button.btn-unlock, [id*="get-link" i]');
+    for (const btn of getLinkBtns) {
+      const a = btn.closest('a[href]') || btn.querySelector('a[href]');
+      if (a && !candidateLinks.includes(a)) candidateLinks.push(a);
     }
 
     // Also check any anchor whose visible text is "Get Link"
-    if (!link) {
-      const allAnchors = document.querySelectorAll('a[href]');
-      for (const a of allAnchors) {
-        const text = (a.textContent || '').trim().toLowerCase();
-        if ((text === 'get link' || text === 'go to link') && !text.includes('wait')) {
-          link = a;
-          break;
-        }
+    const allAnchors = document.querySelectorAll('a[href]');
+    for (const a of allAnchors) {
+      const text = (a.textContent || '').trim().toLowerCase();
+      if ((text === 'get link' || text === 'go to link') && !text.includes('wait') && !candidateLinks.includes(a)) {
+        candidateLinks.push(a);
       }
     }
 
-    if (link && link.href && !link.dataset.redirected) {
-      const dest = link.href;
+    // Find the first valid, unlocked, visible, non-javascript destination link
+    const validLink = candidateLinks.find(link => {
+      if (!link || !link.href || link.dataset.redirected) return false;
       const rawHref = link.getAttribute('href') || '';
-      const isInvalid = !dest ||
-        rawHref === '#' ||
-        rawHref.startsWith('javascript:') ||
-        link.classList.contains('disabled') ||
-        link.hasAttribute('disabled') ||
-        dest === window.location.href ||
-        dest === window.location.href + '#';
+      if (!rawHref || rawHref === '#' || rawHref.startsWith('javascript:')) return false;
+      if (link.classList.contains('disabled') || link.hasAttribute('disabled')) return false;
+      if (link.style.display === 'none') return false;
+      const dest = link.href;
+      if (dest === window.location.href || dest === window.location.href + '#') return false;
+      return true;
+    });
 
-      if (!isInvalid) {
-        log('Auto-redirecting to Get Link destination:', dest);
-        link.dataset.redirected = 'true';
-        recordAction();
-        window.location.href = dest;
-        return true;
-      }
+    if (validLink) {
+      const dest = validLink.href;
+      log('Auto-redirecting to Get Link destination:', dest);
+      validLink.dataset.redirected = 'true';
+      recordAction();
+      window.location.href = dest;
+      return true;
     }
     return false;
   }
+
+  // Intercept user clicks in the capture phase to protect against ad-hijacking scripts (e.g. wistfulseverely.com)
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    const rawHref = a.getAttribute('href') || '';
+    if (rawHref && !rawHref.startsWith('javascript:') && rawHref !== '#') {
+      const isGateOrDest = a.id === 'gt-link' || a.id === 'get-link' || a.id === 'link1s' || 
+        a.id === 'btn7' || a.id === 'btn1' || a.id === 'cross-snp2' ||
+        a.classList.contains('get-link') || /get\s*link|continue|verify/i.test(a.textContent || '');
+      if (isGateOrDest && !a.classList.contains('disabled') && a.style.display !== 'none') {
+        // Prevent ad hijacking listeners from hijacking the window to an ad URL
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        log('Intercepted user click on gate link, cleanly navigating to:', a.href);
+        a.dataset.redirected = 'true';
+        recordAction();
+        window.location.href = a.href;
+      }
+    }
+  }, true);
 
   // 1) FINAL STATE: submit RTG/SafeLink form directly (button may be hidden)
   function submitSafeLinkFormOnce() {
