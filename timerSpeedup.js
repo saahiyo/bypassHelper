@@ -4,7 +4,7 @@
     // 1. Detection Helpers
     const isSecurityChallenge = () => {
         // Immediate detection of Cloudflare internal variables
-        if (window._cf_chl_opt || window.cloudflare) return true;
+        if (window._cf_chl_opt || window.cloudflare || window.__CF$cv$params) return true;
         
         // Title check (works very early)
         const title = document.title;
@@ -56,17 +56,15 @@
         return;
     }
 
-    // 3. Aggressive timing logic
+    // 3. Timing logic
     const origST = window.setTimeout;
     const origSI = window.setInterval;
     const origRAF = window.requestAnimationFrame;
     const origNow = Date.now;
     const origPerf = window.performance;
     const origPerfNow = origPerf ? origPerf.now.bind(origPerf) : null;
-    
-    const startTime = origNow();
-    const perfStartTime = origPerfNow ? origPerfNow() : 0;
-    const clockFactor = 100; // 100x speedup for clock sync
+    const origAlert = window.alert;
+    const origOpen = window.open;
     
     // Helper to check if speedup should be active (dynamic fallback)
     const isEnabled = () => {
@@ -75,46 +73,60 @@
         return true;
     };
 
-    // Force almost instant execution for timeouts
+    // Accelerate only long countdown timeouts (>= 1000ms), leave small/network/debounce timeouts intact
     window.setTimeout = function(fn, delay, ...args) {
-        return origST(fn, isEnabled() ? 10 : delay, ...args);
-    };
-
-    // Force rapid execution for intervals
-    window.setInterval = function(fn, delay, ...args) {
-        return origSI(fn, isEnabled() ? 50 : delay, ...args);
-    };
-
-    // Override requestAnimationFrame to run at max speed
-    window.requestAnimationFrame = function(callback) {
-        if (isEnabled()) {
-            // Run immediately via setTimeout instead of waiting for next paint
-            return origST(callback, 1);
+        let d = delay;
+        if (isEnabled() && typeof delay === 'number' && delay >= 1000) {
+            d = Math.max(200, Math.floor(delay / 4));
         }
+        return origST(fn, d, ...args);
+    };
+
+    // Accelerate long countdown intervals (>= 800ms) safely without triggering server-side premature errors
+    window.setInterval = function(fn, delay, ...args) {
+        let d = delay;
+        if (isEnabled() && typeof delay === 'number' && delay >= 800) {
+            d = Math.max(200, Math.floor(delay / 4));
+        }
+        return origSI(fn, d, ...args);
+    };
+
+    // Keep requestAnimationFrame native for UI stability
+    window.requestAnimationFrame = function(callback) {
         return origRAF(callback);
     };
 
-    // Override Date.now() to match accelerated time
-    Date.now = function() {
-        if (!isEnabled()) return origNow();
-        return startTime + (origNow() - startTime) * clockFactor;
+    // Do NOT warp Date.now() or performance.now() at runtime — anti-bot systems (Cloudflare,
+    // Turnstile, reCAPTCHA) and server-side timestamps detect time distortion and return "Bad Request."
+    Date.now = origNow;
+
+    // Suppress blocking alert modals (such as "Bad Request.") that freeze the UI
+    window.alert = function(msg) {
+        dbg('Alert intercepted:', msg);
+        if (typeof msg === 'string' && /bad\s*request/i.test(msg)) {
+            return;
+        }
+        return origAlert(msg);
     };
 
-    // Override performance.now()
-    if (origPerf && origPerfNow) {
-        try {
-            Object.defineProperty(origPerf, 'now', {
-                value: function() {
-                    if (!isEnabled()) return origPerfNow();
-                    return perfStartTime + (origPerfNow() - perfStartTime) * clockFactor;
-                },
-                configurable: true,
-                writable: true
-            });
-        } catch {
-            // Silently fail if performance.now is immutable
+    // Keep navigation inside current window and prevent opening multiple tabs or ad popups
+    window.open = function(url, target, features) {
+        dbg('window.open intercepted:', url, target);
+        if (isEnabled() && url) {
+            try {
+                const u = new URL(url, window.location.href);
+                const isAd = /(wistfulseverely|alwingulla|highcpmgate|onclick|popads|propellerads|adsterra|n6wxm)/i.test(u.hostname);
+                if (isAd) {
+                    dbg('Blocked ad popup window:', url);
+                    return null;
+                }
+                // For gate links or relative/same-domain redirects, keep in current window
+                window.location.href = url;
+                return window;
+            } catch { /* ignore parse error */ }
         }
-    }
+        return origOpen.call(window, url, target, features);
+    };
 
     // Fully remove every override so a disabled extension leaves zero footprint.
     let restored = false;
@@ -125,6 +137,8 @@
         window.setInterval = origSI;
         window.requestAnimationFrame = origRAF;
         Date.now = origNow;
+        window.alert = origAlert;
+        window.open = origOpen;
         if (origPerf && origPerfNow) {
             try {
                 Object.defineProperty(origPerf, 'now', {

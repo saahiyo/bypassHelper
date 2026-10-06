@@ -13,6 +13,7 @@ Scope: `content.js`, `background.js`, `popup.js`, `timerSpeedup.js`, `shortcuts.
 | F-02 | `test/regression.test.js` | Duplicated exclusion list in `timerSpeedup.js` had no guard against drift from `excluded_hosts.txt`. | Added automated drift guard test verifying list synchronization. |
 | F-03 | `background.js`, `content.js`, `popup.js` | ESLint warnings for unused catch variables and uncleared `statsInterval` in `popup.js`. | Used optional catch bindings and registered `unload` listener to clear `statsInterval`. |
 | F-04 | `content.js` | Layout thrashing in `isSecurityChallenge()`: read `document.body.innerText` on each run before fast selectors. | Prioritized cheap title, selector, and script tag checks before innerText fallback. |
+| F-05 | `content.js` | Shorteners like `arolinks.com` failed to navigate multi-step gates due to `target="_blank"`, missing button IDs (`#btn7`, `#btn1`, `#gt-link`), and getting trapped on completed/hidden IDs. | Stripped `target="_blank"`, prioritized actionable uncompleted elements, added `#btn7`/`#btn1`/`#gt-link`, and bumped `MAX_ACTIONS` to 10. |
 
 Tooling: `package.json`, `eslint.config.mjs` (flat config, webext globals), `test/regression.test.js` (Node built-in runner, zero deps). `npm run lint` → 0 errors, 0 warnings. `npm test` → 9/9 pass.
 

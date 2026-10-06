@@ -21,7 +21,7 @@
 
   const CONFIG = {
     DEBUG: debugEnabled ?? false,
-    MAX_ACTIONS: 5,
+    MAX_ACTIONS: 10,
     DETECTION_THRESHOLD: 2,
     ACTION_INTERVAL: 5000, // safety-net fallback (MutationObserver is primary)
     EXCLUDED_HOSTS: [],
@@ -135,7 +135,9 @@
       return [...document.querySelectorAll('a,button,div')]
         .some(el => {
           // Relaxed visibility check for known IDs or if it's high priority
-          const isKnownId = el.id === 'btn6' || el.id === 'rtg-snp2' || el.id === 'alt';
+          const isKnownId = el.id === 'btn6' || el.id === 'btn7' || el.id === 'btn1' || 
+            el.id === 'startCountdownBtn' || el.id === 'cross-snp2' || el.id === 'get-link' || 
+            el.id === 'link1s' || el.id === 'rtg-snp2' || el.id === 'alt';
           return (el.offsetParent || isKnownId) && KEYWORDS_RE.test(el.textContent);
         });
     }
@@ -165,7 +167,7 @@
     }
 
     // Force gate if specific IDs exist (even if hidden)
-    if (document.querySelector('#btn6, #rtg-snp2, #alt')) {
+    if (document.querySelector('#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #alt')) {
       score += 2;
       gated = true;
     }
@@ -214,25 +216,51 @@
 
   // 0) HIGHEST PRIORITY: auto-redirect "Get Link" anchors to their href
   function autoRedirectGetLink() {
-    // Match by id="get-link" or class containing "get-link"
+    // Match by id="get-link" or class containing "get-link" or direct link id
     const selectors = [
       'a#gtelinkbtn[href]',
+      'a#gt-link[href]',
       'a#get-link[href]',
       'a.get-link[href]',
       'a[id*="get-link"][href]',
-      'a[class*="get-link"][href]'
+      'a[class*="get-link"][href]',
+      'a#link1s[href]',
+      'a[id^="link1"][href]'
     ];
-    const link = document.querySelector(selectors.join(','));
+    let link = document.querySelector(selectors.join(','));
+
+    // Also check if an anchor wraps a "Get Link" / unlock button (e.g. <a id="link1s"><button id="get-link">Get Link</button></a>)
+    if (!link) {
+      const getLinkBtn = document.querySelector('#get-link, button.get-link, button.btn-unlock, [id*="get-link" i]');
+      if (getLinkBtn) {
+        link = getLinkBtn.closest('a[href]') || getLinkBtn.querySelector('a[href]');
+      }
+    }
+
+    // Also check any anchor whose visible text is "Get Link"
+    if (!link) {
+      const allAnchors = document.querySelectorAll('a[href]');
+      for (const a of allAnchors) {
+        const text = (a.textContent || '').trim().toLowerCase();
+        if ((text === 'get link' || text === 'go to link') && !text.includes('wait')) {
+          link = a;
+          break;
+        }
+      }
+    }
 
     if (link && link.href && !link.dataset.redirected) {
       const dest = link.href;
-      // Avoid redirecting to same page or empty/javascript links
-      if (
-        dest &&
-        !dest.startsWith('javascript:') &&
-        dest !== window.location.href &&
-        dest !== window.location.href + '#'
-      ) {
+      const rawHref = link.getAttribute('href') || '';
+      const isInvalid = !dest ||
+        rawHref === '#' ||
+        rawHref.startsWith('javascript:') ||
+        link.classList.contains('disabled') ||
+        link.hasAttribute('disabled') ||
+        dest === window.location.href ||
+        dest === window.location.href + '#';
+
+      if (!isInvalid) {
         log('Auto-redirecting to Get Link destination:', dest);
         link.dataset.redirected = 'true';
         recordAction();
@@ -281,16 +309,17 @@
     }
 
     // Filter out common non-gate forms to avoid unintended submissions
-    const action = (form.getAttribute('action') || '').toLowerCase();
+    const action = (form.getAttribute('action') || form.action || '').toLowerCase();
+    const formId = (form.id || '').toLowerCase();
     const safeFormPatterns = [
       'wp-comments-post.php', 'contact-form',       // WordPress / contact
       '/login', '/signin', '/auth', '/register',     // Authentication
       '/search', '?q=', '?query=',                   // Search
       '/checkout', '/payment', '/billing', '/donate', // Payment
       '/subscribe', '/newsletter', '/signup',         // Newsletter / signup
-      'links/go'                                      // Server-validated timer forms
+      'links/go', 'go-link'                           // Server-validated timer forms
     ];
-    if (safeFormPatterns.some(p => action.includes(p))) return false;
+    if (formId.includes('go-link') || safeFormPatterns.some(p => action.includes(p))) return false;
 
     const hasHiddenToken = !!form.querySelector("input[type='hidden']");
     if (!hasHiddenToken) return false;
@@ -360,12 +389,40 @@
       element.dispatchEvent(event);
     });
 
-    // 3. Native method call
+    // 3. If element is an anchor or has an anchor parent/child, prevent opening in new tabs that lose session
+    const anchor = element.tagName === 'A' ? element : element.closest('a') || element.querySelector('a');
+    if (anchor) {
+      if (anchor.getAttribute('target') === '_blank') {
+        anchor.removeAttribute('target');
+      }
+      // If anchor has a hijacking onclick handler (e.g. specialActionHandler opening ads), neutralize it
+      const onclickAttr = anchor.getAttribute('onclick') || '';
+      if (/specialActionHandler|window\.open/i.test(onclickAttr)) {
+        anchor.removeAttribute('onclick');
+        anchor.onclick = null;
+      }
+    }
+
+    // 4. Native method call
     if (typeof element.click === 'function') {
       element.click();
     }
+    if (anchor && anchor !== element && typeof anchor.click === 'function') {
+      anchor.click();
+    }
 
-    // 4. Restoration timer (optional, but keeps UI stable)
+    // 5. If it's a direct navigation link and hasn't navigated, follow href
+    if (anchor && anchor.href && !anchor.href.startsWith('javascript:') && !anchor.href.includes('#')) {
+      const dest = anchor.href;
+      setTimeout(() => {
+        if (!stopped && window.location.href !== dest) {
+          log('Anchor click did not navigate, following href:', dest);
+          window.location.href = dest;
+        }
+      }, 300);
+    }
+
+    // 6. Restoration timer (optional, but keeps UI stable)
     setTimeout(() => {
       if (stopped) return;
       Object.assign(element.style, originalStyles);
@@ -397,10 +454,25 @@
       return true;
     }
 
-    // Look for specific gate buttons by ID
-    let idBtn = document.querySelector(
-      '#btn6, #rtg-snp2, #rtg-snp21, #bt-success, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id^="rtg-snp"]'
-    );
+    // Look for specific gate buttons by ID (find the first visible/uncompleted one)
+    const gateIdSelectors = '#btn6, #btn7, #btn1, #startCountdownBtn, #cross-snp2, #get-link, #link1s, #rtg-snp2, #rtg-snp21, #bt-success, #getlink1, #ga, #gi, #notarobot, #ProFooterAdClose, #ProStickyAdClose, [id*="snp"], [id*="countdown" i], [class*="countdown-btn" i]';
+    const idBtnCandidates = Array.from(document.querySelectorAll(gateIdSelectors));
+    let idBtn = idBtnCandidates.find(el => {
+      if (el.dataset.finalClicked === 'true') return false;
+      const isHidden = el.style.display === 'none' || (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0);
+      if (isHidden) return false;
+      // If already clicked, only consider it if it's a multiTap element whose text or state changed
+      if (el.dataset.clicked === 'true') {
+        const text = (el.textContent || '').toLowerCase();
+        if (el.dataset.lastText === text) return false;
+      }
+      return true;
+    });
+
+    // Only consider hidden candidates as fallback if NO countdown is in progress
+    if (!idBtn && !detectors.countdown()) {
+      idBtn = idBtnCandidates.find(el => el.dataset.finalClicked !== 'true' && el.dataset.clicked !== 'true');
+    }
     
     // Also look for buttons by class (e.g. "GO TO LINK - CLICK OPEN" with class .bt-success)
     if (!idBtn) {
@@ -423,9 +495,9 @@
         }
       }
 
-      const multiTapIds = ['getlink1', 'btn6', 'rtg-snp2', 'rtg-snp21'];
+      const multiTapIds = ['getlink1', 'btn6', 'btn7', 'btn1', 'startCountdownBtn', 'cross-snp2', 'get-link', 'rtg-snp2', 'rtg-snp21'];
       const btnId = idBtn.id || '';
-      const isMultiTap = multiTapIds.includes(btnId) || btnId.startsWith('rtg-snp');
+      const isMultiTap = multiTapIds.includes(btnId) || btnId.startsWith('rtg-snp') || btnId.includes('snp');
       const btnText = (idBtn.textContent || '').toLowerCase();
       
       // 1. Skip if already finished
